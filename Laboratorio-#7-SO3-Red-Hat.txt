@@ -1,0 +1,151 @@
+===============================================================================
+PRACTICA 1: COMPARTIR ARCHIVOS ENTRE LINUX UTILIZANDO NFS (RHEL 10)
+===============================================================================
+
+-------------------------------------------------------------------------------
+1. CONFIGURACION EN EL SERVIDOR NFS (RHEL 10)
+-------------------------------------------------------------------------------
+
+# 1.1. Instalar las utilidades de NFS
+sudo dnf install -y nfs-utils
+
+# 1.2. Crear el directorio a compartir
+sudo mkdir -p /OS3
+
+# 1.3. Crear los 100 archivos requeridos dentro del directorio
+sudo bash -c 'for i in {1..100}; do touch /OS3/Adrian${i}.txt; done'
+
+# 1.4. Asignar permisos y propietario para acceso de lectura y escritura
+sudo chmod -R 777 /OS3
+sudo chown -R nobody:nobody /OS3
+
+# 1.5. Configurar el archivo de exportaciones (/etc/exports)
+# Reemplazar 192.168.1.0/24 con el segmento de red o IP cliente correspondiente
+echo "/OS3 192.168.1.0/24(rw,sync,no_root_squash)" | sudo tee -a /etc/exports
+
+# 1.6. Iniciar y habilitar el servicio NFS
+sudo systemctl enable --now nfs-server
+
+# 1.7. Aplicar la nueva configuración de exportación
+sudo exportfs -rav
+
+# 1.8. Configurar el cortafuegos (Firewalld)
+sudo firewall-cmd --permanent --add-service=nfs
+sudo firewall-cmd --permanent --add-service=rpc-bind
+sudo firewall-cmd --permanent --add-service=mountd
+sudo firewall-cmd --reload
+
+
+-------------------------------------------------------------------------------
+2. CONFIGURACION EN EL CLIENTE NFS (RHEL 10)
+-------------------------------------------------------------------------------
+
+# 2.1. Instalar las utilidades cliente de NFS
+sudo dnf install -y nfs-utils
+
+# 2.2. Crear el punto de montaje local
+sudo mkdir -p /mnt/OS3_compartido
+
+# 2.3. Montar manualmente el directorio (Reemplazar IP_SERVIDOR por la IP real)
+sudo mount -t nfs IP_SERVIDOR:/OS3 /mnt/OS3_compartido
+
+# 2.4. Verificar los archivos montados
+ls -l /mnt/OS3_compartido
+
+# 2.5. Configurar el montaje automático al reiniciar (/etc/fstab)
+# Agregar la siguiente línea al final del archivo /etc/fstab:
+echo "IP_SERVIDOR:/OS3 /mnt/OS3_compartido nfs defaults 0 0" | sudo tee -a /etc/fstab
+
+# 2.6. Probar la configuración de fstab sin reiniciar
+sudo mount -a
+
+# 2.7. Pasos para la prueba visual requerida:
+# - Ejecutar 'ls /mnt/OS3_compartido' en el cliente para mostrar los 100 archivos.
+# - Reiniciar la VM cliente con 'sudo reboot'.
+# - Al iniciar sesión, ejecutar 'df -h' o 'ls /mnt/OS3_compartido' para comprobar
+#   que se montó automáticamente.
+
+
+===============================================================================
+PRACTICA 2: FILESERVER COMPATIBLE CON WINDOWS UTILIZANDO SAMBA (RHEL 10)
+===============================================================================
+
+-------------------------------------------------------------------------------
+1. CONFIGURACION EN EL SERVIDOR LINUX (RHEL 10)
+-------------------------------------------------------------------------------
+
+# 1.1. Instalar Samba y sus paquetes necesarios
+sudo dnf install -y samba samba-client
+
+# 1.2. Crear directorio compartido y los 100 archivos
+sudo mkdir -p /samba/compartido
+sudo bash -c 'for i in {1..100}; do touch /samba/compartido/adrian${i}; done'
+
+# 1.3. Crear grupo de usuarios y usuario del sistema/Samba
+sudo groupadd sambagroup
+sudo useradd -M -s /sbin/nologin adrianuser
+sudo usermod -aG sambagroup adrianuser
+
+# 1.4. Establecer contraseña de Samba para el usuario
+sudo smbpasswd -a adrianuser
+
+# 1.5. Configurar permisos de sistema y SELinux en RHEL 10
+sudo chown -R root:sambagroup /samba/compartido
+sudo chmod -R 775 /samba/compartido
+sudo chcon -t samba_share_t /samba/compartido
+
+# 1.6. Respaldar y configurar el archivo /etc/samba/smb.conf
+sudo cp /etc/samba/smb.conf /etc/samba/smb.conf.bak
+
+# Agregar la siguiente bloque al final del archivo /etc/samba/smb.conf:
+/*
+[Compartido]
+   comment = Carpeta Compartida Samba
+   path = /samba/compartido
+   valid users = @sambagroup
+   guest ok = no
+   writable = yes
+   browsable = yes
+   create mask = 0664
+   directory mask = 0775
+*/
+
+# 1.7. Habilitar e iniciar los servicios de Samba
+sudo systemctl enable --now smb nmb
+
+# 1.8. Permitir tráfico de Samba en el Firewall
+sudo firewall-cmd --permanent --add-service=samba
+sudo firewall-cmd --reload
+
+
+-------------------------------------------------------------------------------
+2. CONFIGURACION Y VALIDACION EN WINDOWS CLIENTE
+-------------------------------------------------------------------------------
+
+# 2.1. Mapear unidad de red en Windows:
+# - Abrir Explorador de archivos > Este equipo.
+# - Clic en "Conectar a unidad de red".
+# - Seleccionar una letra de unidad (ejemplo: Z:).
+# - En Carpeta escribir: \\IP_SERVIDOR_LINUX\Compartido
+# - Marcar "Conectar usando credenciales diferentes".
+# - Ingresar credenciales:
+#     Usuario: adrianuser
+#     Contraseña: (la configurada en smbpasswd)
+
+# 2.2. Modificación de archivo desde Windows:
+# - Entrar al disco mapeado (ejemplo Z:\).
+# - Abrir el archivo 'adrian99' con Bloc de notas.
+# - Escribir dentro la cadena: el zumzum de la carabela
+# - Guardar los cambios y cerrar.
+
+
+-------------------------------------------------------------------------------
+3. VALIDACION EN LINUX
+-------------------------------------------------------------------------------
+
+# 3.1. Verificar la modificación del archivo desde la terminal de RHEL 10:
+cat /samba/compartido/adrian99
+
+# Salida esperada:
+# el zumzum de la carabela
+===============================================================================
