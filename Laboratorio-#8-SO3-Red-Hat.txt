@@ -1,0 +1,177 @@
+===============================================================================
+LABORATORIO 8
+===============================================================================
+
+# Práctica 1: Instalación y Configuración de Docker/Podman en RHEL 10 (AWS EC2)
+
+## Descripción
+Esta práctica consiste en el despliegue de un servidor web NGINX dentro de un contenedor en una instancia EC2 de AWS corriendo Red Hat Enterprise Linux 10. Se realiza la redirección del puerto 8888 del host hacia el puerto 80 del contenedor y se vincula un volumen persistente que sirve una página HTML personalizada con los datos del alumno.
+
+---
+
+## 1. Preparación del Entorno y Volumen Persistente
+
+Creación de la estructura de directorios y del archivo `index.html` en la ruta persistente requerida `/home/website`:
+
+```bash
+# Crear el directorio del volumen persistente
+sudo mkdir -p /home/website
+
+# Crear la página web index.html con los datos correspondientes
+cat << 'EOF' | sudo tee /home/website/index.html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Practica Docker / Podman</title>
+</head>
+<body>
+    <h1>Angelo Marcelo Cerda Javier</h1>
+    <h2>Matrícula: 2025-2751</h2>
+</body>
+</html>
+EOF
+
+# Ajustar SELinux a modo permisivo para autorizar la lectura de volúmenes montados
+sudo setenforce 0
+
+# Habilitar el reenvío de paquetes IP (IP Forwarding) en el kernel
+sudo sysctl -w net.ipv4.ip_forward=1
+
+# Descargar la imagen de NGINX desde Docker Hub
+sudo podman pull nginx
+
+# Eliminar cualquier contenedor previo con el mismo nombre (opcional)
+sudo podman rm -f nginx-server 2>/dev/null
+
+# Crear y ejecutar el contenedor con redirección de puerto y volumen persistente
+sudo podman run -d \
+  -p 0.0.0.0:8888:80 \
+  -v /home/website:/usr/share/nginx/html:z \
+  --name nginx-server \
+  nginx
+
+curl [http://127.0.0.1:8888](http://127.0.0.1:8888)
+
+[http://3.134.113.12:8888](http://3.134.113.12:8888)
+
+
+= PRACTICA 2 =
+
+sudo docker volume create portainer_data
+
+sudo docker run -d \
+  -p 8000:8000 \
+  -p 9443:9443 \
+  -p 9000:9000 \
+  --name portainer \
+  --restart=always \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v portainer_data:/data \
+  portainer/portainer-ce:latest
+
+sudo docker ps
+
+https://3.134.113.120:9443
+
+En la pantalla inicial de configuración:
+
+Crea el usuario administrador especificando una contraseña.
+
+Haz clic en Create user.
+
+Al estar vinculado al socket local /var/run/docker.sock, Portainer detectará automáticamente el entorno local (Docker Engine del host). Haz clic en la tarjeta del entorno local para ingresar al panel de control.
+
+Paso 4: Detener el contenedor de NGINX desde Portainer
+Dentro del panel de Portainer, en el menú lateral izquierdo, haz clic en Containers.
+
+Ubica en la lista el contenedor correspondiente a NGINX (de la práctica anterior).
+
+Marca la casilla de verificación situada al lado del contenedor NGINX.
+
+En la barra de acciones superior, haz clic en el botón Stop.
+
+Verifica que el estado (State) del contenedor cambie a stopped (en color rojo/gris).
+
+Paso 5: Comprobar el resultado en el navegador Web
+Abre una nueva pestaña en el navegador e intenta acceder a la dirección de tu servidor NGINX (usando el puerto donde corría NGINX, por ejemplo: [http://3.134.113.120](http://3.134.113.120) o el puerto que le hayas asignado).
+
+Verás que la página ya no carga (mostrará un error de Conexión rechazada o No se puede acceder al sitio web), confirmando que el servicio NGINX fue detenido exitosamente desde la interfaz de Portainer.
+
+
+= PRACTICA 3 =
+
+# 1. Instalacion de paquetes de Docker en RHEL
+sudo dnf install -y dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin nano
+
+# 2. Habilitar e iniciar el servicio de Docker
+sudo systemctl enable --now docker
+
+# 3. Creacion de directorio de trabajo
+mkdir -p ~/wordpress-docker && cd ~/wordpress-docker
+
+# 4. Creacion de archivo docker-compose.yml
+nano docker-compose.yml
+
+	services:
+  db:
+    image: mariadb:10.6
+    container_name: wordpress_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password_seguro
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wp_user
+      MYSQL_PASSWORD: wp_password_seguro
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      wp-network:
+        ipv4_address: 172.20.0.2
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password_seguro"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress_app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    environment:
+      WORDPRESS_DB_HOST: 172.20.0.2:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wp_user
+      WORDPRESS_DB_PASSWORD: wp_password_seguro
+    volumes:
+      - wordpress_data:/var/www/html
+    networks:
+      wp-network:
+        ipv4_address: 172.20.0.3
+
+volumes:
+  db_data:
+  wordpress_data:
+
+networks:
+  wp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# 5. Despliegue de los contenedores
+sudo docker compose up -d
+
+# 6. Verificacion del estado de los contenedores y healthcheck
+sudo docker compose ps
+
+# 7. Prueba de conexion a la BD desde la app
+sudo docker compose exec wordpress php -r "echo @mysqli_connect('172.20.0.2', 'wp_user', 'wp_password_seguro', 'wordpress') ? 'Conexion Exitosa' : 'Error de Conexion';"
