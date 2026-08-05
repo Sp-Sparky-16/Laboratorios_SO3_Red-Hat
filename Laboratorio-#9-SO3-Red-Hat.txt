@@ -1,0 +1,324 @@
+======================================
+Practica 1 Instalacion de Webmin
+======================================
+# Práctica de Instalación y Configuración de Webmin en Red Hat Enterprise Linux 10 (AWS EC2)
+
+Guía completa desde cero para la creación de la infraestructura en AWS EC2, despliegue de Red Hat Enterprise Linux 10 y configuración de Webmin para la administración del servidor.
+
+---
+
+## 1. Creación e Infraestructura en AWS EC2
+
+### Dónde ejecutar: Consola Web de AWS (Navegador Web)
+
+#### Paso 1.1: Lanzar la Instancia EC2
+1. Inicia sesión en la *Consola de AWS* y ve al servicio *EC2*.
+2. Haz clic en el botón *Launch Instance* (Lanzar instancia).
+3. Configura los parámetros principales:
+   * *Name:* Angelo (o el nombre de tu preferencia).
+   * *Application and OS Images (AMI):* Selecciona *Red Hat Enterprise Linux 10* (RHEL 10).
+   * *Instance Type:* t3.micro (o la elegida para la práctica).
+   * *Key Pair (Par de llaves):* Selecciona una llave existente o crea una nueva para el acceso SSH.
+
+#### Paso 1.2: Configurar el Grupo de Seguridad (Network Settings / Security Group)
+Dentro del mismo formulario de creación o editando el Security Group de la instancia:
+1. Asegúrate de permitir acceso por *SSH (Puerto 22)*.
+2. Agrega una regla personalizada para la interfaz web de Webmin:
+   * *Type:* Custom TCP
+   * *Port Range:* 10000
+   * *Source:* 0.0.0.0/0 (Anywhere-IPv4)
+3. Haz clic en *Launch Instance*.
+
+---
+
+## 2. Instalación de Webmin y Dependencias
+
+### Dónde ejecutar: Terminal de tu equipo local (Conexión SSH)
+
+Conéctate a la máquina virtual desde tu terminal (o la consola EC2 Instance Connect / CloudShell) usando la IP pública asignada:
+
+```bash
+ssh -i /ruta/a/tu-llave.pem ec2-user@<TU_IP_PUBLICA_AWS>
+
+sudo dnf update -y
+sudo dnf install -y wget perl tar openssl perl-Net-SSLeay
+
+sudo nano /etc/yum.repos.d/webmin.repo
+
+[Webmin]
+name=Webmin Distribution Neutral
+baseurl=[https://download.webmin.com/download/yum](https://download.webmin.com/download/yum)
+enabled=1
+gpgcheck=1
+gpgkey=[https://download.webmin.com/jcameron-key.asc](https://download.webmin.com/jcameron-key.asc)
+
+sudo dnf install -y webmin
+
+sudo nft add rule inet filter input tcp dport 10000 accept
+
+sudo /usr/libexec/webmin/changepass.pl /etc/webmin root TuContraseñaSegura
+
+3. Acceso a la Interfaz Web
+Dónde ejecutar: Navegador Web (Firefox, Chrome, Edge)
+Abre tu navegador e ingresa a la siguiente dirección sustituyendo por tu IP pública:
+https://<TU_IP_PUBLICA_AWS>:10000
+
+Cuando el navegador muestre la advertencia sobre el certificado SSL autofirmado, haz clic en Avanzado > Continuar al sitio.
+
+Inicia sesión con las credenciales:
+
+Username: root
+
+Password: La contraseña configurada en el paso 2.5.
+
+4. Tareas de Administración Ejecutadas desde Webmin
+A. Administración de Usuarios
+Ruta: System > Users and Groups
+
+Crear usuario:
+
+Haz clic en Create a new user.
+
+Asigna el Username (ej. usuario_prueba), selecciona Shell (/bin/bash) e ingresa la clave en Encrypted password.
+
+Presiona Create.
+
+Eliminar usuario:
+
+Haz clic sobre usuario_prueba en la lista.
+
+Presiona el botón Delete al final del formulario y confirma haciendo clic en Delete User.
+
+B. Gestión de Servicios (Caso de estudio: OpenSSH)
+Ruta: System > Systemd Services and Units
+
+Acciones:
+
+Ubica en la lista el servicio sshd.service.
+
+Utiliza las opciones para controlar el estado: Stop (Detener), Start (Iniciar) y Restart (Reiniciar).
+
+C. Configuración de Red
+Ruta: Networking > Network Configuration > Network Interfaces
+
+Acción:
+
+Revisa la interfaz activa (ens5) en la pestaña Activated at Boot.
+
+Nota de infraestructura: En AWS EC2 no se debe cambiar la IP a estática manualmente dentro del sistema operativo, ya que interrumpe la puerta de enlace predeterminada (172.31.0.1). La interfaz debe permanecer en modo DHCP y la asignación estática se maneja con una Elastic IP desde la consola de AWS.
+
+D. Administración de Software
+Ruta: System > Software Packages
+
+Instalar un paquete:
+
+Ve a la pestaña Install a new package.
+
+Selecciona Package from YUM.
+
+Escribe el nombre de la herramienta (ej. zip o httpd) y presiona Install.
+
+Eliminar un paquete:
+
+Ve a la pestaña Installed packages.
+
+Busca zip en la casilla Search For Package y presiona Enter.
+
+Selecciona el resultado encontrado y presiona Uninstall.
+
+E. Gestión de Archivos y Directorios
+Ruta: Tools > File Manager
+
+Acciones:
+
+Explorar: Navega por los directorios usando la barra de ruta superior o el panel izquierdo (ej. entrando a /etc).
+
+Crear y Editar: Ve al menú superior File > Create file, nombra el archivo archivo_prueba.txt. Haz clic derecho sobre él, selecciona Edit, escribe texto de prueba y presiona Save.
+
+Eliminar: Haz clic derecho sobre archivo_prueba.txt y selecciona Delete.
+
+F. Monitorización del Sistema
+Ruta: Dashboard (Panel Principal)
+
+Acción: Supervisa en tiempo real los gráficos de CPU usage (Procesador), Real memory (Memoria RAM) y Local disk space (Almacenamiento). Para detalles por proceso, consulta System > Running Processes.
+
+=============================================
+Practica 3: Instalación de Ansible 
+=============================================
+
+VM SERVER
+# 1. Actualizar el sistema e instalar Python 3, pip y dependencias base
+sudo dnf update -y
+sudo dnf install -y python3 python3-pip git
+
+# 2. Instalar Ansible
+sudo dnf install -y ansible-core
+# Si no está en los repositorios por defecto:
+# pip3 install --user ansible-core
+
+# 3. Instalar dependencias para comunicación con Windows (WinRM)
+pip3 install pywinrm requests-ntlm --user
+
+# 4. Instalar la colección de Windows para Ansible
+ansible-galaxy collection install ansible.windows
+
+VM SERVER Y AWS
+# Generar el par de llaves SSH si no existen
+ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa
+
+# Mostrar la llave pública para copiarla
+cat ~/.ssh/id_rsa.pub
+
+AWS
+# Crear directorio .ssh y asignar permisos correctos
+mkdir -p /home/ansible/.ssh
+chmod 700 /home/ansible/.ssh
+
+# Pegar la llave pública dentro del archivo authorized_keys
+nano /home/ansible/.ssh/authorized_keys
+
+# Guardar y asegurar permisos
+chmod 600 /home/ansible/.ssh/authorized_keys
+chown -R ansible:ansible /home/ansible/.ssh
+
+
+WIN 10 POWERSHELL ADMIN
+# 1. Crear el usuario 'ansible' y asignarlo al grupo de Administradores
+Net User ansible Angelo27! /add
+Net LocalGroup Administrators ansible /add
+
+# 2. Abrir el puerto 5985 (HTTP) en el Firewall
+New-NetFirewallRule -Name "Ansible-WinRM-HTTP" -DisplayName "Ansible WinRM HTTP" -Enabled True -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow
+
+# 3. Habilitar la autenticación sin cifrado y básica para el servicio WSMan
+Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value $true
+Set-Item WSMan:\localhost\Service\Auth\Basic -Value $true
+
+# 4. Cambiar el tipo de red a Privada
+Set-NetConnectionProfile -NetworkCategory Private
+
+# 5. Permitir el filtro de tokens para cuentas locales a través de WinRM
+New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "LocalAccountTokenFilterPolicy" -Value 1 -PropertyType DWord -Force
+
+# 6. Reiniciar el servicio WinRM para aplicar cambios
+Restart-Service WinRM
+
+VM SERVER
+sudo mkdir -p /etc/ansible
+sudo nano /etc/ansible/hosts
+
+[linux]
+ansible1 ansible_host=18.218.64.192 ansible_user=ansible
+
+[win]
+ansible2 ansible_host=10.0.0.5
+
+[win:vars]
+ansible_user=ansible
+ansible_password=Angelo27!
+ansible_connection=winrm
+ansible_port=5985
+ansible_winrm_scheme=http
+ansible_winrm_transport=basic
+ansible_winrm_server_cert_validation=ignore
+
+# Probar conexión SSH con el nodo Linux (AWS)
+ansible linux -m ping
+
+# Probar conexión WinRM con el nodo Windows 10
+ansible win -m win_ping
+
+
+
+============================================================
+Practica 4: Comandos Ad-Hoc
+============================================================
+
+1. Requisitos Previos
+Antes de ejecutar los comandos ad-hoc, asegúrate de cumplir con lo siguiente:
+
+El archivo de inventario /etc/ansible/hosts debe estar configurado y funcional (Práctica 3).
+
+Conectividad activa comprobada mediante ansible linux -m ping y ansible win -m win_ping.
+
+En la máquina Windows 10 (ansible2), debe existir un archivo de texto en el Escritorio (por ejemplo, Document.txt).
+
+ansible ansible2 -m win_copy -a "src='C:/Users/Angelo/Desktop/Document.txt' dest='C:/Users/ansible/Documents/Document.txt' remote_src=yes"
+
+Resultado Esperado:
+Respuesta en color amarillo con "changed": true indicando que el archivo fue copiado exitosamente a la carpeta de Documentos.
+
+ansible ansible1 -m reboot --become
+
+
+================================================================
+Practica 5: Playbooks
+================================================================
+
+Práctica 5: Automatización con Playbooks de Ansible
+Un Playbook es un archivo escrito en formato YAML donde se definen, de forma estructurada y secuencial, las tareas que Ansible debe ejecutar en los nodos administrados. En esta práctica se realiza la automatización del despliegue e instalación de software en un entorno heterogéneo que combina Windows 10 y Red Hat Linux.
+
+1. Requisitos Previos
+Antes de escribir y ejecutar los playbooks, el entorno debe contar con las siguientes configuraciones activas (completadas en prácticas anteriores):
+
+Inventario /etc/ansible/hosts configurado con los grupos [linux] (ansible1) y [win] (ansible2).
+
+Conectividad WinRM y SSH operativa (verificada mediante ansible win -m win_ping y ansible linux -m ping).
+
+Colección de Windows para Ansible instalada en el controlador:
+
+ansible-galaxy collection install ansible.windows
+
+2. Playbook 1: Instalación de Notepad++ en Windows (ansible2)
+Descripción:
+Este playbook automatiza la descarga silenciosa del instalador oficial de Notepad++ desde su repositorio y realiza la instalación desatendida dentro de la máquina virtual de Windows 10 usando los módulos nativos de la colección ansible.windows.
+
+Archivo: install_notepad.yml
+En la terminal del Ansible Controller (ansible@angelo), crea el archivo:
+
+nano install_notepad.yml
+
+---
+- name: Instalar Notepad++ en Windows
+  hosts: ansible2
+  tasks:
+    - name: Descargar instalador de Notepad++
+      ansible.windows.win_get_url:
+        url: https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.6.9/npp.8.6.9.Installer.x64.exe
+        dest: C:\Users\ansible\Downloads\npp_setup.exe
+
+    - name: Instalar Notepad++ en modo silencioso
+      ansible.windows.win_package:
+        path: C:\Users\ansible\Downloads\npp_setup.exe
+        product_id: Notepad++
+        arguments: /S
+        state: present
+
+ansible-playbook install_notepad.yml
+
+3. Playbook 2: Instalación y Configuración de NGINX en Linux (ansible1)
+Descripción:
+Este playbook se encarga de instalar el servidor web NGINX mediante el gestor de paquetes dnf en el nodo de Red Hat Linux (AWS), habilitando el servicio para que inicie automáticamente con el sistema y asegurando que se encuentre en ejecución.
+
+Archivo: install_nginx.yml
+En la terminal del Ansible Controller (ansible@angelo), crea el archivo:
+
+nano install_nginx.yml
+
+---
+- name: Instalar e iniciar NGINX en Linux
+  hosts: ansible1
+  become: yes
+  tasks:
+    - name: Instalar NGINX
+      ansible.builtin.dnf:
+        name: nginx
+        state: present
+
+    - name: Iniciar y habilitar el servicio NGINX
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: yes
+
+ansible-playbook install_nginx.yml
