@@ -1,137 +1,333 @@
-#############################################################################
-# PRÁCTICA 1: INSTALAR UN SERVIDOR HTTP APACHE2
-#############################################################################
+===================================================
+Practica 1: Instalar un servidor HTTP apache2/nginx 
+===================================================
+instalar y habilitar apache
+sudo dnf install -y httpd --nogpgcheck
+sudo systemctl enable --now httpd
 
-# 1. Actualizar repositorios e instalar Apache (httpd)
-sudo dnf update -y
-sudo dnf install httpd -y
+crear estructura de directorios y sitios html
+sudo mkdir -p /var/www/site1
+sudo mkdir -p /var/www/site2
 
-# 2. Crear las estructuras de directorios para ambos sitios
-sudo mkdir -p /var/www/html/puerto80
-sudo mkdir -p /var/www/html/puerto8080
+creacion del sitio web 1 en el puerto 80
+echo "<h1>Hola Mundo</h1>" | sudo tee /var/www/site1/index.html
 
-# 3. Crear el sitio estático para el Puerto 80 (Hola Mundo)
-echo "<h1>Hola Mundo</h1>" | sudo tee /var/www/html/puerto80/index.html
+creacion del sitio 2 en el puerto 8080cat <<EOF | sudo tee /var/www/site2/index.html
+<!DOCTYPE html>
+<html>
+<head><title>Practica 1</title></head>
+<body>
+    <h1>Nombre: Tu Nombre Aqui</h1>
+    <h2>Matricula: 2025-2751</h2>
+    <h2>Materia: Nombre de la Materia</h2>
+</body>
+</html>
+EOF
 
-# 4. Crear el sitio estático para el Puerto 8080 (Datos Personales)
-echo "<h1>Angelo Marcelo Cerda Javier - 2025-2751 - Seguridad Informatica</h1>" | sudo tee /var/www/html/puerto8080/index.html
-
-# 5. Configurar los permisos correctos y contextos de seguridad de SELinux
-sudo chown -R apache:apache /var/www/html/puerto80
-sudo chown -R apache:apache /var/www/html/puerto8080
-sudo chmod -R 755 /var/www/html/puerto80
-sudo chmod -R 755 /var/www/html/puerto8080
-sudo restorecon -R -v /var/www/html/
-
-# 6. Crear el archivo de configuración de Hosts Virtuales
-# Ruta: /etc/httpd/conf.d/practica1.conf
-sudo tee /etc/httpd/conf.d/practica1.conf << 'EOF'
-# Configuración de escucha de puertos
-Listen 80
+configuracion del virtual host para configurar el puerto 8080
+sudo nano /etc/httpd/conf.d/virtualhosts.conf
+# Indicar a Apache que escuche en el puerto 8080 (el puerto 80 ya viene por defecto)
 Listen 8080
 
-# Host Virtual - Puerto 80 (Hola Mundo)
+# Virtual Host 1: Puerto 80
 <VirtualHost *:80>
-    DocumentRoot "/var/www/html/puerto80"
-    ServerName localhost
-    <Directory "/var/www/html/puerto80">
+    DocumentRoot "/var/www/site1"
+    <Directory "/var/www/site1">
         AllowOverride None
         Require all granted
     </Directory>
 </VirtualHost>
 
-# Host Virtual - Puerto 8080 (Datos Personales)
+# Virtual Host 2: Puerto 8080
 <VirtualHost *:8080>
-    DocumentRoot "/var/www/html/puerto8080"
-    ServerName localhost
-    <Directory "/var/www/html/puerto8080">
+    DocumentRoot "/var/www/site2"
+    <Directory "/var/www/site2">
         AllowOverride None
+        Require all granted
+    </Directory>
+</VirtualHost>
+
+ajustar selinux para habilitar la escucha del puerto 8080
+sudo semanage port -a -t http_port_t -p tcp 8080
+contexto de seguridad
+sudo restorecon -R -v /var/www/
+habilitar el puerto 80 y 8080 en el firewall
+sudo firewall-cmd --permanent --add-port=80/tcp
+sudo firewall-cmd --permanent --add-port=8080/tcp
+sudo firewall-cmd --reload
+
+verificar si tiene error
+sudo apachectl configtest
+
+reiniciar servicio para habilitar los cambios
+sudo systemctl restart httpd
+
+verificar si funciona todo
+curl http://localhost
+curl http://localhost:8080
+
+
+===========================================
+Practica 2: Instalar un servidor de correos
+===========================================
+instalar postfix y el cliente de correo
+sudo dnf install -y postfix mailx --nogpgcheck
+
+configurar y arrancar el servicio postfix
+sudo postconf -e "myhostname = localhost.localdomain"
+
+habilitar e iniciar el servicio
+sudo systemctl enable --now postfix
+
+instalar dependencias de autenticacion
+sudo dnf install -y cyrus-sasl cyrus-sasl-plain --nogpgcheck
+
+ Crear una Contraseña de Aplicación en Google
+Entra a tu cuenta de Google (cerdaangelo16@gmail.com).
+
+Ve a Seguridad > Verificación en dos pasos (debe estar activada).
+
+Busca Contraseñas de aplicaciones (App passwords).
+
+Genera una nueva clave con el nombre "Postfix" y copia el código de 16 caracteres generado.
+
+guardar las credenciales de pstfix
+sudo nano /etc/postfix/sasl_passwd
+[smtp.gmail.com]:587 cerdaangelo16@gmail.com:TU_CONTRASEÑA_DE_16_LETRAS
+
+aplicar permisos de seguridad y compilar la base de datos
+sudo chmod 600 /etc/postfix/sasl_passwd
+sudo postmap /etc/postfix/sasl_passwd
+
+configurar postfix para usar el relay de gmail
+sudo nano /etc/postfix/main.cf
+
+relayhost = [smtp.gmail.com]:587
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = lmdb:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+smtp_tls_security_level = encrypt
+smtp_tls_CAfile = /etc/pki/tls/certs/ca-bundle.crt
+
+instalar soporte de mapas Berkeley 
+sudo dnf install -y postfix-lmdb cyrus-sasl-plain
+
+Asegúrate de haber instalado postfix-lmdb (sudo dnf install -y postfix-lmdb) y luego compila la base de datos de claves
+sudo postmap lmdb:/etc/postfix/sasl_passwd
+
+reiniciar postfix
+sudo systemctl restart postfix
+
+enviar el correo de la practica
+echo "Nombre: Angelo Marcelo Cerda Javier - Matricula: 2025-2751" | mail -s "MambruSeFueALaGuerra" os3conadrian@gmail.com
+
+revisar la cola de correo
+mailq
+
+
+=============================================
+Practica 3: Instalar un servidor de Impresion 
+=============================================
+
+instalar cups y la impresora virtual pdf
+sudo dnf install -y cups cups-pdf --nogpgcheck
+
+habilitar cups
+sudo systemctl enable --now cups
+
+configurar para acceso remoto
+sudo nano /etc/cups/cupsd.conf
+
+Cambia Listen localhost:631 por: Listen *:631
+
+En los bloques <Location/> y <Location /admin>, agrega la directiva Allow all:
+<Location />
+  Order allow,deny
+  Allow all
+</Location>
+
+<Location /admin>
+  Order allow,deny
+  Allow all
+</Location>
+
+configurar selinux para abrir el puerto 631
+sudo firewall-cmd --permanent --add-port=631/tcp
+sudo firewall-cmd --reload
+
+permitir la carpeta de salida de impresora
+sudo setsebool -P cups_execmem 1
+
+reiniciar cups
+sudo systemctl restart cups
+
+agregar impresora pdf en cups
+sudo lpadmin -p Impresora_PDF -v cups-pdf:/ -E -m raw
+
+asignar modelo ppd correto
+sudo lpadmin -p Impresora_PDF -v cups-pdf:/ -E -m CUPS-PDF.ppd
+
+verificar el estado de la impresora
+lpstat -p Impresora_PDF -l
+
+revisamos la ip de la maquina virtual con esa ip irremos a windows y buscaremos impresoras y escaners y agregaremos un nuevo dispositivo y manualmente lo vamos a agregar y pondremos http://IP_DE_TU_SERVIDOR:631/printers/Impresora_PDF y le ponemos Generic / Text Only
+
+compraobacion de la impression
+lpstat -W completed -o
+
+======
+EXTRAS
+======
+
+Práctica 1: Servidor Web Apache (httpd)
+Comandos clave y sus parámetros
+dnf install -y <paquete>
+
+install: Descarga e instala los paquetes indicados.
+
+-y: Responde "sí" automáticamente a todas las confirmaciones.
+
+systemctl enable --now <servicio>
+
+enable: Configura el servicio para que inicie automáticamente con el sistema.
+
+--now: Inicia el servicio inmediatamente sin tener que ejecutar start por separado.
+
+semanage port -a -t http_port_t -p tcp <puerto>
+
+-a: Añade una regla a la política de SELinux.
+
+-t http_port_t: Define el tipo de contexto de puerto (en este caso, puertos autorizados para servidores web).
+
+-p tcp: Especifica el protocolo de red (TCP).
+
+restorecon -R -v <directorio>
+
+-R: Aplica el cambio de contexto de seguridad de SELinux de forma recursiva a todos los subdirectorios y archivos.
+
+-v: Muestra en pantalla los archivos cuyo contexto ha sido restaurado.
+
+firewall-cmd --permanent --add-port=<puerto>/tcp
+
+--permanent: Guarda la regla en el almacenamiento persistente para que no se pierda al reiniciar.
+
+--add-port: Abre un puerto específico especificando puerto y protocolo.
+
+Recomendaciones de código para Práctica 1
+Bash
+# Instalación e inicio rápido de Apache
+sudo dnf install -y httpd && sudo systemctl enable --now httpd
+
+# Creación de estructura de directorios en una sola línea
+sudo mkdir -p /var/www/{site1,site2}
+
+# Configuración limpia del VirtualHost (escuchando en 80 y 8080)
+cat <<'EOF' | sudo tee /etc/httpd/conf.d/virtualhosts.conf
+Listen 8080
+
+<VirtualHost *:80>
+    DocumentRoot "/var/www/site1"
+    <Directory "/var/www/site1">
+        Require all granted
+    </Directory>
+</VirtualHost>
+
+<VirtualHost *:8080>
+    DocumentRoot "/var/www/site2"
+    <Directory "/var/www/site2">
         Require all granted
     </Directory>
 </VirtualHost>
 EOF
 
-# 7. Agregar el puerto 8080 a las políticas de red de SELinux (Puerto no estándar)
+# Reglas de red y SELinux requeridas
 sudo semanage port -a -t http_port_t -p tcp 8080
+sudo restorecon -R -v /var/www/
+sudo firewall-cmd --permanent --add-port={80,8080}/tcp && sudo firewall-cmd --reload
+sudo apachectl configtest && sudo systemctl restart httpd
+Práctica 2: Servidor de Correo Postfix (SMTP Relay)
+Comandos clave y sus parámetros
+postconf -e "<parametro> = <valor>"
 
-# 8. Configurar el Firewall para permitir el tráfico en ambos puertos
-sudo firewall-cmd --permanent --add-port=80/tcp
-sudo firewall-cmd --permanent --add-port=8080/tcp
-sudo firewall-cmd --reload
+-e: Edita o añade la directiva especificada directamente en el archivo /etc/postfix/main.cf de forma segura.
 
-# 9. Habilitar e iniciar el servicio de Apache
-sudo systemctl enable --now httpd
+postmap <tipo>:<archivo>
 
-# 10. Verificación local de los sitios
-curl http://localhost:80
-curl http://localhost:8080
+<tipo>: Tipo de base de datos (lmdb para Red Hat 10, reemplaza al antiguo hash).
 
+<archivo>: Archivo de texto plano con los mapeos (ej. usuarios/contraseñas) para compilarlo en formato binario legible por Postfix.
 
-#############################################################################
-# PRÁCTICA 2: INSTALAR UN SERVIDOR DE CORREOS (POSTFIX)
-#############################################################################
+journalctl -u <servicio> -n <lineas> --no-pager
 
-# 1. Instalar Postfix y utilidades de correo (mailx)
-sudo dnf install postfix mailx -y
+-u: Filtra los registros por una unidad de systemd específica.
 
-# 2. Hacer una copia de seguridad del archivo de configuración original
-sudo cp /etc/postfix/main.cf /etc/postfix/main.cf.bak
+-n: Especifica el número de líneas recientes a mostrar.
 
-# 3. Configurar los parámetros esenciales en /etc/postfix/main.cf
-sudo postconf -e "myhostname = mail.itla.edu.do"
-sudo postconf -e "mydomain = itla.edu.do"
-sudo postconf -e "myorigin = \$mydomain"
-sudo postconf -e "inet_interfaces = all"
-sudo postconf -e "inet_protocols = all"
-sudo postconf -e "mydestination = \$myhostname, localhost.\$mydomain, localhost"
+--no-pager: Imprime la salida directamente en la terminal sin abrir un paginador (less).
 
-# 4. Habilitar y arrancar el servicio de Postfix
-sudo systemctl enable --now postfix
+Recomendaciones de código para Práctica 2
+Bash
+# Instalación del servidor Postfix y clientes con soporte LMDB/SASL
+sudo dnf install -y postfix mailx postfix-lmdb cyrus-sasl-plain
 
-# 5. Configurar el Firewall para el servicio SMTP
-sudo firewall-cmd --permanent --add-service=smtp
-sudo firewall-cmd --reload
+# Configuración del archivo de credenciales de Gmail
+cat <<EOF | sudo tee /etc/postfix/sasl_passwd
+[smtp.gmail.com]:587 cerdaangelo16@gmail.com:TU_CONTRASEÑA_DE_APLICACION
+EOF
 
-# 6. Enviar el correo de prueba solicitado al docente
-# Asunto obligatorio: MambruSeFueALaGuerra
-# Destinatario: os3conadrian@gmail.com
-# Cuerpo: Nombre y Matrícula
-echo "Angelo Marcelo Cerda Javier - Matricula: 2025-2751" | mail -s "MambruSeFueALaGuerra" os3conadrian@gmail.com
+sudo chmod 600 /etc/postfix/sasl_passwd
+sudo postmap lmdb:/etc/postfix/sasl_passwd
 
+# Aplicar directivas esenciales en Postfix para el Relay por puerto 587
+sudo postconf -e "relayhost = [smtp.gmail.com]:587"
+sudo postconf -e "smtp_sasl_auth_enable = yes"
+sudo postconf -e "smtp_sasl_password_maps = lmdb:/etc/postfix/sasl_passwd"
+sudo postconf -e "smtp_sasl_security_options = noanonymous"
+sudo postconf -e "smtp_tls_security_level = encrypt"
+sudo postconf -e "smtp_tls_CAfile = /etc/pki/tls/certs/ca-bundle.crt"
 
-#############################################################################
-# PRÁCTICA 3: INSTALAR UN SERVIDOR DE IMPRESIÓN (CUPS)
-#############################################################################
+# Reiniciar y probar
+sudo systemctl restart postfix
+echo "Nombre: Angelo Marcelo Cerda Javier - Matricula: 2025-2751" | mail -s "MambruSeFueALaGuerra" os3conadrian@gmail.com
+Práctica 3: Servidor de Impresión CUPS (Impresora PDF)
+Comandos clave y sus parámetros
+lpadmin -p <nombre> -v <dispositivo> -E -m <controlador>
 
-# 1. Instalar el sistema de impresión CUPS y el módulo de impresión a PDF
-sudo dnf install cups cups-pdf -y
+-p: Asigna un nombre descriptivo a la impresora.
 
-# 2. Hacer copia de respaldo de la configuración de CUPS
-sudo cp /etc/cups/cupsd.conf /etc/cups/cupsd.conf.bak
+-v: Especifica la URI del dispositivo (ej. cups-pdf:/).
 
-# 3. Configurar CUPS para escuchar en todas las interfaces de red (Puerto 631)
-sudo sed -i 's/Listen localhost:631/Port 631/' /etc/cups/cupsd.conf
+-E: Habilita y acepta trabajos en la cola de impresión de manera inmediata.
 
-# 4. Permitir acceso a la red local dentro del archivo de configuración
-# Modifica las secciones principales para autorizar la administración remota
-sudo cupsctl --remote-admin --remote-any --share-printers
+-m: Selecciona el archivo de controlador PPD a utilizar (usar CUPS-PDF.ppd para evitar advertencias de depreciación raw).
 
-# 5. Iniciar y habilitar el servicio CUPS
-sudo systemctl enable --now cups
+lpstat -p <nombre> -l
 
-# 6. Configurar el Firewall para permitir el tráfico de red de CUPS
-sudo firewall-cmd --permanent --add-port=631/tcp
-sudo firewall-cmd --reload
+-p: Revisa el estado de una impresora específica.
 
-# 7. Crear la impresora virtual PDF por línea de comandos compartida en la red
-sudo lpadmin -p Impresora_Virtual_PDF -v cups-pdf:/ -E -m everywhere
+-l: Muestra una salida detallada en formato largo.
 
-# 8. Nota para despliegue en cliente (Windows / Word):
-# - Dirección de red para conectar la impresora en el cliente de Windows:
-#   http://<IP_DEL_SERVIDOR>:631/printers/Impresora_Virtual_PDF
-# - Los documentos impresos como PDF se guardarán en el servidor en:
-#   /var/spool/cups-pdf/ANONYMOUS/
-#############################################################################
-PLAYLIST DE YOUTUBE
-=============================================================================
-https://www.youtube.com/playlist?list=PL39ueDYTUKTcGTLHHXIWoROLcxs_FDWyM
+setsebool -P <booleano> <valor>
+
+-P: Aplica el cambio de la regla booleana de SELinux de forma permanente (persiste tras reinicios).
+
+<valor>: 1 o on para activar la regla.
+
+Recomendaciones de código para Práctica 3
+Bash
+# Instalación de CUPS y módulo PDF
+sudo dnf install -y cups cups-pdf && sudo systemctl enable --now cups
+
+# Configuración de permisos de acceso en cupsd.conf
+sudo sed -i 's/Listen localhost:631/Listen *:631/' /etc/cups/cupsd.conf
+sudo cupsctl --share-printers --remote-admin --remote-any
+
+# Creación de la impresora con el controlador nativo PPD
+sudo lpadmin -p Impresora_PDF -v cups-pdf:/ -E -m CUPS-PDF.ppd
+
+# Ajustes de firewall y permisos de SELinux
+sudo setsebool -P cups_execmem 1
+sudo firewall-cmd --permanent --add-port=631/tcp && sudo firewall-cmd --reload
+sudo systemctl restart cups
+
+# Verificar que los PDFs se generen correctam
