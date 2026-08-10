@@ -1,253 +1,216 @@
-📋 PRÁCTICA 1: Gestión de Repositorios y Paquetes
-sudo dnf upgrade -y
-Definición: Actualiza la base de datos de paquetes de los repositorios y procede a instalar las versiones más recientes de todos los componentes del sistema operativo.
+==========
+practica1
+==========
+ver si hay actualizacion y actualizar
+> sudo dnf check-update
+> sudo dnf upgrade -y
 
-Parámetros:
+enumerar repositorios actuales
+> sudo dnf repolist
 
-sudo: Ejecuta el comando con privilegios de superusuario (root).
+buscar herramienta en el cache de repositorios
+> sudo dnf search bashtop
 
-dnf: El gestor de paquetes por defecto en RHEL (Dandified YUM).
+habilitar repositorio epel
+> sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm
 
-upgrade: Acción de actualizar los paquetes instalados.
+actualizar cache
+> sudo dnf makecache
 
--y: Responde automáticamente "sí" (yes) a todas las preguntas de confirmación.
+instalar bashtop
+> sudo dnf install bashtop -y
 
-sudo dnf repolist
-Definición: Muestra un listado en pantalla de todos los repositorios de software que están actualmente activos (enabled) en el servidor.
+desistalar bashtop
+> sudo dnf remove bashtop -y
 
-Parámetros:
+eliminar directorio de configuracion
+> rm -rf ~/.config/bashtop
 
-repolist: Opción para listar los identificadores, nombres y estados de los repositorios.
+borrar dependencias huerfanas
+> sudo dnf autoremove -y
 
-sudo dnf search bashtop
-Definición: Busca en el caché local de los repositorios cualquier paquete que coincida o contenga el término especificado.
+==========
+Practica2
+==========
+ 
+iniciar cron
+> sudo crontab -e
+	crear trabajo
+	0 23 * * * dnf upgrade -y
+	0 3 * * 0 /sbin/shutdown -r now
+Esc, escriba :wq
 
-Parámetros:
+tarea de at
+> sudo dnf install at -y
+> sudo systemctl enable --now atd
 
-search: Acción de buscar en los metadatos de los paquetes.
+mostrar conteniddo de /tmp
+> ls -l /tmp
 
-bashtop: El nombre del paquete o palabra clave que se desea encontrar.
+programar la eliminacion del contenido
+> echo "rm -rf /tmp/* /tmp/.* 2>/dev/null" | sudo at now + 1 minute
 
-sudo dnf config-manager --set-enabled crb
-Definición: Habilita el repositorio CodeReady Linux Builder (CRB) en RHEL, el cual contiene herramientas de desarrollo adicionales necesarias para ciertas dependencias.
+revisar cola con
+> sudo atq
 
-Parámetros:
+==========
+practica 3
+==========
+indenteficar y formatear disco en formato ext4
+> lsblk
+> sudo mkfs.ext4 /dev/sdb
 
-config-manager: Herramienta para administrar las opciones de configuración de DNF.
+crer carpeta en el escritorio y montar la unidad previamente formateada
+> mkdir -p ~/Escritorio/mi_disco #creacion de directorio
+> sudo mount /dev/sdb ~/Escritorio/mi_disco #montar unidad
+> df -h | grep sdb # verificar el montaje
 
---set-enabled crb: Modifica el archivo de configuración para activar el repositorio llamado "crb".
+crear el archivo denrro del punto de montaje
+> cd ~/Escritorio/mi_disco
+> sudo touch AdrianAlcantara.txt
 
-sudo dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm -y
-Definición: Descarga e instala directamente desde una dirección web (URL) el paquete que añade el repositorio EPEL (Extra Packages for Enterprise Linux) al sistema.
+desmontar unidad y volver a mecarla en mnt
+> sudo umount ~/Escritorio/mi_disco #desmontar unidad
+>  sudo mount /dev/sdb /mnt # volver a montar en otro lado
 
-Parámetros:
 
-install: Acción de descargar e instalar un paquete de software.
+======
+EXTRAS
+======
 
-URL: Dirección web directa del archivo .rpm ejecutable.
+Práctica 1: Gestión de paquetes y repositorios (dnf)
+Comando principal: dnf check-update / dnf upgrade
 
-sudo dnf clean all
-Definición: Borra por completo todos los archivos temporales, metadatos y caché que el gestor de paquetes dnf guarda en el disco duro. Se usa para solucionar problemas de descarga.
+Variantes y parámetros:
 
-Parámetros:
+sudo dnf update --refresh: Fuerza a actualizar la caché de los repositorios antes de verificar actualizaciones.
 
-clean all: Elimina tanto el caché de los paquetes como el de los metadatos de los repositorios.
+sudo dnf upgrade --security: Aplica únicamente las actualizaciones marcadas como parches de seguridad critical/important.
 
-sudo dnf makecache
-Definición: Descarga y reconstruye de forma manual los metadatos de todos los repositorios activos, guardándolos en el caché para que las búsquedas e instalaciones sean inmediatas.
+sudo dnf upgrade-to <paquete>-<versión>: Actualiza o degrada un paquete específico a una versión exacta.
 
-Parámetros:
+sudo dnf update --exclude=<paquete>: Actualiza todo el sistema excluyendo un paquete específico (ej. dnf upgrade --exclude=kernel).
 
-makecache: Fuerza la descarga de los índices de software actuales.
+Comando principal: dnf repolist
 
-sudo dnf install bashtop -y
-Definición: Busca, descarga e instala la herramienta de monitorización de recursos "Bashtop" junto con cualquier dependencia que requiera.
+Variantes y parámetros:
 
-Parámetros:
+sudo dnf repolist --all: Muestra todos los repositorios configurados en el sistema, tanto los habilitados como los deshabilitados.
 
-bashtop: El nombre exacto del programa a instalar.
+sudo dnf repoinfo <repo_id>: Muestra información detallada sobre un repositorio (URL base, fecha de última actualización, estado).
 
-sudo dnf remove bashtop -y
-Definición: Desinstala el paquete del programa especificado, eliminando sus binarios y archivos principales del sistema.
+sudo dnf config-manager --set-enabled <repo_id>: Habilita un repositorio específico sin editar manualmente archivos en /etc/yum.repos.d/.
 
-Parámetros:
+sudo dnf config-manager --set-disabled <repo_id>: Deshabilita un repositorio.
 
-remove: Acción de borrar el paquete indicado.
+Comando principal: dnf search / dnf install
 
-rm -rf ~/.config/bashtop
-Definición: Elimina de forma permanente el directorio oculto donde se guardan las configuraciones personalizadas que generó el usuario al ejecutar el programa.
+Variantes y parámetros:
 
-Parámetros:
+dnf search all <término>: Busca la palabra clave no solo en el nombre del paquete, sino también en las descripciones completas.
 
-rm: Comando para borrar (remove) archivos o directorios.
+dnf provides <archivo_o_comando> o dnf whatprovides <comando>: Identifica qué paquete proporciona un archivo ejecutable o librería que falta (ej. dnf provides */bashtop).
 
--r: Recursivo (borra la carpeta y todo lo que tenga adentro).
+dnf info <paquete>: Muestra versión, licencias, tamaño y resumen detallado de un paquete antes de instalarlo.
 
--f: Fuerza el borrado sin pedir confirmación (force).
+sudo dnf install --downloadonly <paquete>: Descarga los paquetes RPM y sus dependencias al disco sin llegar a instalarlos.
 
-~/.config/bashtop: Ruta absoluta del directorio de configuración del usuario actual (~ representa la carpeta Home).
+Comando principal: dnf remove / dnf autoremove
 
-sudo dnf autoremove -y
-Definición: Analiza el sistema y elimina de forma automática todos los paquetes (dependencias) que se instalaron en su momento para que funcionara otro programa, pero que ahora se quedaron huérfanos y sin uso.
+Variantes y parámetros:
 
-Parámetros:
+sudo dnf remove --duplicates: Elimina versiones antiguas duplicadas de paquetes que no se limpiaron correctamente.
 
-autoremove: Ejecuta la limpieza automática de dependencias huerfanas.
+sudo dnf history: Muestra el historial completo de operaciones de instalación, actualización y remoción realizadas en el sistema.
 
-⏰ PRÁCTICA 2: Tareas Programadas y Automatización
-sudo crontab -e
-Definición: Abre el archivo de configuración de tareas cron del usuario administrador utilizando el editor de texto por defecto del sistema para añadir, modificar o borrar tareas recurrentes.
+sudo dnf history undo <ID_de_transacción>: Revierte completamente los cambios aplicados en una transacción previa específica (desinstala lo que se instaló o viceversa).
 
-Parámetros:
+Comandos recomendados complementarios para la Práctica 1:
 
-crontab: Administrador del servicio cron.
+rpm -qa: Lista absolutamente todos los paquetes RPM instalados en el sistema operativo.
 
--e: Opción para editar (edit) el archivo de configuración.
+rpm -ql <paquete>: Lista todos los archivos individuales y rutas que instaló un paquete concreto.
 
-Expresión Cron: 0 23 * * * dnf upgrade -y
-Definición: Regla que automatiza la actualización del sistema. Ejecuta la tarea a las 11:00 PM de cada día.
+dnf clean all: Elimina la memoria caché de metadatos e imágenes RPM para liberar espacio o resolver problemas de sincronización de repositorios.
 
-Componentes de la sintaxis:
+Práctica 2: Automatización y tareas programadas (cron y at)
+Comando principal: crontab
 
-0: Minuto exacto (Minuto 0).
+Variantes y parámetros:
 
-23: Hora en formato de 24 horas (11 PM).
+crontab -l: Lista las tareas programadas activas para el usuario actual sin abrir el editor.
 
-*: Cualquier día del mes.
+sudo crontab -u <usuario> -e: Permite al administrador editar la tabla de cron perteneciente a otro usuario del sistema.
 
-*: Cualquier mes del año.
+crontab -r: Elimina completamente el archivo crontab del usuario actual (borra todas las tareas).
 
-*: Cualquier día de la semana.
+crontab -i -r: Pide confirmación interactiva antes de eliminar el archivo crontab.
 
-dnf upgrade -y: El comando del sistema que se va a disparar automáticamente.
+Sintaxis y variantes de tiempo en Cron:
 
-Expresión Cron: 0 3 * * 0 /sbin/shutdown -r now
-Definición: Regla que automatiza el reinicio completo del servidor todos los domingos a las 3:00 AM.
+@reboot /ruta/comando: Ejecuta la tarea una sola vez durante la secuencia de arranque del sistema.
 
-Componentes de la sintaxis:
+@daily o @midnight (equivalente a 0 0 * * *): Ejecuta la orden todos los días a medianoche.
 
-0: Minuto 0.
+*/15 * * * *: Ejecuta una tarea en intervalos recurrentes (en este caso, cada 15 minutos).
 
-3: Hora de la madrugada (3 AM).
+Comando principal: at y atd
 
-*: Cualquier día del mes.
+Variantes y parámetros:
 
-*: Cualquier mes.
+atq: Muestra la lista/cola de trabajos pendientes programados con at.
 
-0: Representa el día Domingo en el sistema cron (algunos sistemas aceptan el 7).
+atrm <ID_trabajo>: Elimina un trabajo específico de la cola de ejecución según su identificador numérico.
 
-/sbin/shutdown -r now: Ruta absoluta del comando para reiniciar de inmediato (-r de reboot, now de ahora mismo).
+at -c <ID_trabajo>: Muestra las variables de entorno y el script exacto que se ejecutará en ese trabajo.
 
-ls -la /tmp
-Definición: Muestra un listado detallado de todos los archivos y directorios contenidos en la carpeta temporal del sistema, incluyendo los elementos ocultos.
+at -f /ruta/script.sh 14:30: Programa la ejecución de un archivo script existente para una hora específica.
 
-Parámetros:
+Comandos recomendados complementarios para la Práctica 2:
 
-ls: Lista el contenido de un directorio.
+systemctl status crond: Verifica que el demonio principal de cron esté activo en el sistema.
 
--l: Formato largo (long), muestra permisos, dueño, tamaño y fecha.
+systemctl status atd: Revisa el estado de ejecución del servicio secundario para tareas at.
 
--a: Muestra todos (all) los archivos, incluyendo los ocultos que empiezan con un punto ..
+systemd-run --on-calendar="2026-08-11 11:00:00" <comando>: Alternativa moderna nativa de Systemd (systemd.timer) que reemplaza a cron y at en distribuciones empresariales como RHEL.
 
-/tmp: La ruta del directorio temporal que se desea examinar.
+Práctica 3: Gestión de discos, particiones y puntos de montaje
+Comando principal: lsblk
 
-echo "rm -rf /tmp/*" | at now + 1 minute
-Definición: Envía una instrucción a través de una tubería (|) al comando at para programar la eliminación de todo el contenido de la carpeta /tmp una sola vez exactamente dentro de un minuto.
+Variantes y parámetros:
 
-Parámetros:
+lsblk -f: Muestra la lista de bloques junto con el sistema de archivos (ext4, xfs, etc.), UUID y punto de montaje actual.
 
-echo: Imprime en texto la instrucción que está entre comillas.
+lsblk -m: Muestra la estructura de discos detallando permisos, propietario y grupo de cada dispositivo.
 
-|: Tubería (pipe), pasa la salida del texto anterior como entrada para el siguiente comando.
+fdisk -l /dev/sdb o parted /dev/sdb print: Inspecciona la tabla de particiones (MBR o GPT) existente en un dispositivo físico o virtual específico.
 
-at: Comando para programar tareas de ejecución única.
+Comando principal: mkfs (Formateo)
 
-now + 1 minute: Expresión de tiempo que define el momento exacto de la ejecución (ahora más 1 minuto).
+Variantes y parámetros:
 
-💾 PRÁCTICA 3: Gestión de Almacenamiento y Discos
-lsblk
-Definición: Muestra en forma de árbol una lista de todos los dispositivos de almacenamiento en bloques disponibles (discos duros, particiones, unidades ópticas) conectados actualmente al sistema.
+sudo mkfs.xfs /dev/sdb: Formatea la unidad utilizando XFS, el sistema de archivos nativo y por defecto en Red Hat Enterprise Linux.
 
-Parámetros:
+sudo mkfs.ext4 -L "MI_DISCO" /dev/sdb: Asigna una etiqueta de volumen (label) al disco durante el formateo.
 
-lsblk: List Block Devices. No requiere parámetros adicionales para un recuento básico.
+sudo mkfs.ext4 -b 4096 /dev/sdb: Define un tamaño de bloque personalizado en bytes para la estructura del disco.
 
-sudo mkfs.ext4 /dev/nvme0n2
-Definición: Crea un sistema de archivos con formato ext4 (sistema de archivos nativo de Linux) en la unidad de disco seleccionada, borrando cualquier dato previo.
+Comando principal: mount / umount
 
-Parámetros:
+Variantes y parámetros:
 
-mkfs.ext4: Comando para construir (make filesystem) un formato del tipo ext4.
+sudo mount -o ro /dev/sdb /mnt: Monta la unidad en modo únicamente de sólo lectura (read-only), impidiendo modificaciones o escrituras.
 
-/dev/nvme0n2: La ruta física del disco duro de 20GB detectado en el sistema.
+sudo mount -a: Intenta montar todos los sistemas de archivos declarados en el archivo estático /etc/fstab.
 
-mkdir -p ~/Escritorio/carpeta_practica
-Definición: Crea una carpeta nueva en la ruta indicada. Si las carpetas superiores del camino no existen, las crea de forma automática.
+sudo umount -l /punto_montaje: Desmontaje diferido (lazy unmount). Desconecta el sistema de archivos inmediatamente de la jerarquía, resolviendo bloqueos si la carpeta está siendo utilizada por algún proceso.
 
-Parámetros:
+sudo umount -f /punto_montaje: Fuerza el desmontaje (force) en caso de unidades no disponibles o de red (NFS).
 
-mkdir: Comando para crear directorios (make directory).
+Comandos recomendados complementarios para la Práctica 3:
 
--p: Crea los directorios padres (parents) si es necesario sin dar error.
+df -hT: Muestra el espacio ocupado y disponible en todos los puntos de montaje, indicando de forma explícita el tipo de sistema de archivos (-T) en formato legible por humanos (-h).
 
-~/: Atajo que apunta directamente a la carpeta personal del usuario que inició sesión.
+fuser -mv /punto_montaje o lsof +D /punto_montaje: Identifica exactamente qué procesos o usuarios están bloqueando un directorio e impidiendo que se pueda desmontar con umount.
 
-sudo mount /dev/nvme0n2 ~/Escritorio/carpeta_practica
-Definición: Conecta el sistema de archivos del disco duro de 20GB a la carpeta creada en el Escritorio, permitiendo leer y escribir datos en el dispositivo a través de ese directorio.
-
-Parámetros:
-
-mount: Comando para montar unidades.
-
-/dev/nvme0n2: El dispositivo físico de origen.
-
-~/Escritorio/carpeta_practica: El punto de montaje (destino).
-
-cd ~/Escritorio/carpeta_practica
-Definición: Cambia el directorio de trabajo actual de la terminal a la ruta de la carpeta donde está montado el disco.
-
-Parámetros:
-
-cd: Cambiar de directorio (change directory).
-
-touch AdrianAlcantara.txt
-Definición: Crea un archivo vacío con el nombre y extensión especificados dentro del directorio donde se encuentre posicionada la terminal en ese momento.
-
-Parámetros:
-
-touch: Comando usado para crear archivos vacíos o modificar marcas de tiempo.
-
-sudo umount ~/Escritorio/carpeta_practica
-Definición: Desconecta de forma segura el dispositivo físico del punto de montaje del Escritorio, asegurando que todos los datos pendientes se escriban en el disco.
-
-Parámetros:
-
-umount: Comando para desmontar unidades (unmount). Note que no lleva la letra "n" en "u-mount".
-
-sudo mount /dev/nvme0n2 /mnt
-Definición: Vuelve a conectar el mismo disco duro de 20GB, pero esta vez en la carpeta del sistema /mnt, que está destinada por estándar para montajes temporales de almacenamiento.
-
-Parámetros:
-
-/mnt: Directorio raíz del sistema utilizado como nuevo punto de montaje.
-
-🛠️ COMANDOS ADICIONALES (Solución de problemas de Red)
-sudo subscription-manager clean
-Definición: Elimina por completo todos los datos locales de registro, certificados y tokens de suscripción almacenados en la máquina virtual.
-
-sudo subscription-manager refresh
-Definición: Obliga al sistema a conectarse a los servidores de Red Hat para actualizar los datos de la suscripción y los canales de software asignados a la cuenta.
-
-sudo nmcli connection up $(nmcli -t -f NAME connection show)
-Definición: Busca el nombre de la tarjeta de red activa del sistema y levanta la conexión de inmediato para forzar la obtención de una dirección IP e internet.
-
-Parámetros:
-
-nmcli: Interfaz de línea de comandos de NetworkManager.
-
-connection up: Levanta el perfil de red especificado.
-
-$(...): Sustitución de comando; pasa el nombre exacto de la red como argumento de forma automática.
-
-videos didacticos de las tres practicas
-https://www.youtube.com/playlist?list=PL39ueDYTUKTe0ap3qg3RFKBq64329kp8B
+blkid /dev/sdb: Obtiene el código UUID único del dispositivo de almacenamiento, necesario para configurar montajes automáticos permanentes tras reinicios dentro del archivo /etc/fstab.
