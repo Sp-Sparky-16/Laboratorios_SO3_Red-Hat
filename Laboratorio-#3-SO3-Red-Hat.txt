@@ -50,51 +50,33 @@ PRÁCTICA 1: CONFIGURACIÓN DE GRUB Y RECUPERACIÓN DE CONTRASEÑA ROOT
 -------------------------------------------------------------------------------
 PRÁCTICA 2: AUTOMATIZACIÓN MEDIANTE SCRIPTS EN BASH
 -------------------------------------------------------------------------------
+crear un archivo .sh
+nano backup.sh
+	#!/bin/bash
 
-1. Asignar permisos de ejecución a los archivos de script creados:
-   $ chmod +x backup.sh
-   $ chmod +x guardar_red.sh
-   --> Explicación: Modifica los atributos del archivo de texto añadiendo el 
-       permiso de ejecución (+x), permitiendo al sistema operativo tratar el 
-       script como un programa ejecutable.
+	# Generar fecha y hora en formato dd-mm-yyyy:hh:mm
+	FECHA=$(date +"%d-%m-%Y:%H:%M")
 
-2. Lanzar o probar el script en el directorio actual:
-   $ ./backup.sh
-   $ ./guardar_red.sh
-   --> Explicación: El prefijo './' le indica explícitamente al intérprete de 
-       comandos que busque y ejecute el archivo dentro del directorio actual de 
-       trabajo.
+	# Crear la salva comprimida en el directorio actual
+	tar -czvf "backup_${FECHA}.tar.gz" "$HOME"
 
-3. Explicación de los comandos internos utilizados dentro de los scripts (.sh):
+crear otro archivo .sh
+nano guardar.sh
+	#!/bin/bash
 
-   * USUARIO=$(whoami)
-     --> Explicación: Ejecuta el comando 'whoami' para saber qué usuario está 
-         corriendo el script y guarda dinámicamente ese texto en la variable 'USUARIO'.
+	# Solicitar el nombre del archivo al usuario
+	read -p "Ingresa el nombre para el archivo (sin extensión): " NOMBRE_ARCHIVO
 
-   * FECHA_HORA=$(date +"%d-%m-%Y:%H:%M")
-     --> Explicación: Captura el tiempo del sistema y lo formatea estrictamente 
-         en formato día-mes-año:hora:minuto, guardando el resultado en una variable.
+	# Ejecutar el comando y guardar la salida en el Escritorio
+	ifconfig > "$HOME/Desktop/${NOMBRE_ARCHIVO}.txt" 2>/dev/null || ip a > "$HOME/Desktop/	${NOMBRE_ARCHIVO}.txt"
 
-   * tar -czf "/tmp/$NOMBRE_ARCHIVO" "/home/$USUARIO" 2>/dev/null
-     --> Explicación: El comando 'tar' empaqueta y comprime en formato gzip (-czf) 
-         toda la carpeta personal del usuario, guardándola en la ruta temporal 
-         '/tmp'. El fragmento '2>/dev/null' silencia y descarta cualquier aviso 
-         de error menor (como archivos ocultos bloqueados) para no ensuciar la pantalla.
+	echo "Archivo guardado exitosamente en el Escritorio."
 
-   * mkdir -p "$HOME/Escritorio"
-     --> Explicación: Crea la carpeta del Escritorio dentro del directorio personal 
-         del usuario. El parámetro '-p' evita que el script falle o de un error 
-         si la carpeta ya existía previamente.
+asignar permisos de ejecucion y ejecutar
+chmod +x backup.sh guardar.sh
+./backup.sh
+./guardar.sh
 
-   * read -r NOMBRE_ARCHIVO
-     --> Explicación: Detiene la ejecución del script temporalmente para esperar 
-         a que el usuario digite un nombre por teclado, capturando el texto en la 
-         variable 'NOMBRE_ARCHIVO'.
-
-   * ifconfig > "$HOME/Escritorio/$NOMBRE_ARCHIVO.txt"
-     --> Explicación: Ejecuta la herramienta de diagnóstico de red 'ifconfig' y, 
-         mediante el operador de redirección '>', envía todo su reporte directamente 
-         a un archivo de texto plano creado en el escritorio con el nombre provisto.
 
 
 -------------------------------------------------------------------------------
@@ -152,7 +134,296 @@ PRÁCTICA 3: CONEXIÓN REMOTA SSH Y AUTENTICACIÓN ASIMÉTRICA POR LLAVES
    --> Explicación: Comando final de ejecución. Al estar indexada la llave, 
        las máquinas realizan un intercambio criptográfico transparente, permitiendo 
        el acceso directo a la consola de Red Hat sin solicitar credenciales.
-===============================================================================
-LINK DE LA PLAYLIST
-===============================================================================
-https://www.youtube.com/playlist?list=PL39ueDYTUKTdotGtmaey5vE3UZ2WGjify
+
+======
+EXTRAS
+======
+PRACTICA 1: GRUB Y RECUPERACIÓN DE ROOT
+
+1. nano /etc/default/grub
+
+Explicación: Abre el editor de texto nano para modificar las variables globales del cargador de arranque GRUB.
+
+Parámetros/Opciones principales:
+
+<ruta_al_archivo>: Ruta del archivo que se desea editar (/etc/default/grub).
+
+-B: Crea una copia de respaldo del archivo al guardar.
+
+-R: Abre el archivo en modo solo lectura.
+
+Comandos y herramientas alternativas recomendadas:
+
+vim /etc/default/grub: Editor de texto avanzado directamente en consola.
+
+sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=20/' /etc/default/grub: Modifica el valor directamente sin entrar al editor interactivo.
+
+2. grub2-mkconfig -o /boot/grub2/grub.cfg
+
+Explicación: Genera el archivo definitivo de configuración de GRUB en base a las variables definidas en /etc/default/grub.
+
+Parámetros/Opciones principales:
+
+-o <ruta>: Especifica la ruta del archivo de salida donde se guardará la configuración generada.
+
+Comandos y herramientas alternativas recomendadas:
+
+grub2-editenv list: Muestra la entrada de kernel seleccionada por defecto en GRUB.
+
+grubby --info=ALL: Muestra los parámetros de arranque actuales configurados en todos los kernels instalados.
+
+3. grep GRUB_TIMEOUT /etc/default/grub
+
+Explicación: Busca e imprime las líneas que coincidan con la cadena especificada dentro de un archivo.
+
+Parámetros/Opciones principales:
+
+-i: Ignora diferencias entre mayúsculas y minúsculas.
+
+-n: Muestra el número de línea donde se encontró la coincidencia.
+
+-v: Invierte la búsqueda, mostrando las líneas que no coinciden.
+
+Comandos y herramientas alternativas recomendadas:
+
+cat /etc/default/grub | grep TIMEOUT: Visualiza el contenido filtrado mediante tuberías.
+
+4. mount -o remount,rw /sysroot
+
+Explicación: Vuelve a montar la partición raíz del sistema en el entorno de emergencia con permisos de escritura.
+
+Parámetros/Opciones principales:
+
+-o <opciones>: Define las opciones del montaje. remount reaplica opciones sin desmontar; rw asigna lectura y escritura; ro asigna solo lectura.
+
+Comandos y herramientas alternativas recomendadas:
+
+mount -t <tipo>: Especifica el sistema de archivos (xfs, ext4).
+
+5. chroot /sysroot
+
+Explicación: Cambia el directorio raíz del proceso actual al directorio especificado, aislando el sistema de archivos real.
+
+Parámetros/Opciones principales:
+
+<directorio>: Ruta que pasará a actuar como la nueva raíz /.
+
+Comandos y herramientas alternativas recomendadas:
+
+exit: Abandona la jaula de chroot y regresa a la shell previa.
+
+6. passwd root
+
+Explicación: Actualiza la contraseña del usuario indicado en el sistema.
+
+Parámetros/Opciones principales:
+
+<usuario>: Nombre de la cuenta a modificar.
+
+-l: Bloquea la cuenta impidiendo el acceso.
+
+-u: Desbloquea la cuenta.
+
+-e: Fuerza la expiración de la contraseña para que el usuario la cambie en el próximo inicio.
+
+Comandos y herramientas alternativas recomendadas:
+
+echo "nueva_clave" | passwd --stdin root: Asigna la contraseña sin interactividad.
+
+7. touch /.autorelabel
+
+Explicación: Crea un archivo vacío en el directorio raíz para notificar a SELinux que debe reetiquetar los archivos del sistema al reiniciar.
+
+Parámetros/Opciones principales:
+
+-c: No crea el archivo si ya existe.
+
+-m: Modifica únicamente la fecha de última alteración del archivo.
+
+Comandos y herramientas alternativas recomendadas:
+
+restorecon -Rv /etc/shadow: Restaura manualmente las etiquetas de SELinux en el archivo de contraseñas.
+
+PRACTICA 2: SCRIPTS EN BASH (BACKUP TAR E IFCONFIG)
+
+1. date +"%d-%m-%Y:%H:%M"
+
+Explicación: Imprime o da formato a la fecha y hora actual del sistema.
+
+Parámetros/Opciones principales:
+
++"<formato>": Define el patrón de salida (%d día, %m mes, %Y año de 4 dígitos, %H hora en formato 24h, %M minutos).
+
+-u: Muestra la hora en tiempo universal coordinado (UTC).
+
+Comandos y herramientas alternativas recomendadas:
+
+timedatectl: Consulta y cambia la zona horaria del sistema.
+
+2. tar -czvf "backup.tar.gz" "$HOME"
+
+Explicación: Empaqueta y comprime un conjunto de archivos o directorios.
+
+Parámetros/Opciones principales:
+
+-c: Crea un nuevo archivo de respaldo (archive).
+
+-z: Filtra el archivo a través del algoritmo de compresión gzip.
+
+-v: Muestra de forma detallada (verbose) la lista de archivos procesados.
+
+-f: Especifica el nombre del archivo resultante.
+
+-j: Comprime usando bzip2 en lugar de gzip (mayor compresión, más lento).
+
+-J: Comprime usando xz (máximo nivel de compresión).
+
+-x: Extrae los archivos del paquete.
+
+Comandos y herramientas alternativas recomendadas:
+
+zip -r backup.zip $HOME: Crea un comprimido en formato ZIP de forma recursiva.
+
+rsync -avz $HOME /ruta/destino: Copia incremental y sincronización eficiente de archivos.
+
+3. read -p "Mensaje" NOMBRE_VARIABLE
+
+Explicación: Captura una entrada de texto por teclado durante la ejecución de un script en Bash.
+
+Parámetros/Opciones principales:
+
+-p: Muestra el texto de solicitud antes de leer la entrada.
+
+-s: Oculta los caracteres ingresados (ideal para contraseñas).
+
+-t <segundos>: Establece un tiempo límite para ingresar los datos.
+
+Comandos y herramientas alternativas recomendadas:
+
+select: Crea menús de selección numerados de forma interactiva en Bash.
+
+4. ip a
+
+Explicación: Muestra las interfaces de red, direcciones IP asignadas y estados del enlace.
+
+Parámetros/Opciones principales:
+
+-c: Muestra la salida con colores destacados.
+
+-4: Filtra y muestra solo direcciones IPv4.
+
+-6: Filtra y muestra solo direcciones IPv6.
+
+Comandos y herramientas alternativas recomendadas:
+
+nmcli device show: Detalla la configuración de red gestionada por NetworkManager.
+
+ifconfig: Comando heredado para ver y editar la configuración de red.
+
+5. chmod +x script.sh
+
+Explicación: Modifica los permisos de acceso de un archivo o directorio.
+
+Parámetros/Opciones principales:
+
++x: Añade permiso de ejecución a todos los usuarios.
+
+755: Asigna permisos de lectura/escritura/ejecución al propietario, y lectura/ejecución al resto.
+
+-R: Aplica el cambio de permisos recursivamente a todos los archivos dentro de un directorio.
+
+Comandos y herramientas alternativas recomendadas:
+
+chown usuario:grupo archivo: Cambia el propietario y grupo de un archivo.
+
+PRACTICA 3: RED BRIDGED Y SSH CON LLAVES
+
+1. ping <IP_HOST>
+
+Explicación: Envía paquetes ICMP ECHO_REQUEST a hosts de red para comprobar la alcance y latencia.
+
+Parámetros/Opciones principales:
+
+-c <número>: (Linux) Limita la cantidad de paquetes enviados.
+
+-n <número>: (Windows) Especifica el número de solicitudes enviadas.
+
+-t: (Windows) Envía paquetes de forma ininterrumpida hasta detenerlo con Ctrl+C.
+
+Comandos y herramientas alternativas recomendadas:
+
+traceroute <IP> / tracert <IP>: Traza la ruta que siguen los paquetes en la red.
+
+nc -zv <IP> <PUERTO> / Test-NetConnection: Verifica la apertura de un puerto de red específico (por ejemplo, el puerto 22 para SSH).
+
+2. systemctl enable --now sshd
+
+Explicación: Controla el sistema y los servicios de la plataforma init systemd.
+
+Parámetros/Opciones principales:
+
+enable: Configura el servicio para que inicie automáticamente en el arranque.
+
+--now: Arranca el servicio inmediatamente en el momento de ejecutar el comando.
+
+status: Muestra el estado operativo actual, logs y el PID del servicio.
+
+restart: Reinicia el demonio del servicio.
+
+Comandos y herramientas alternativas recomendadas:
+
+journalctl -u sshd -f: Muestra los registros y logs en tiempo real producidos por el servicio SSH.
+
+3. firewall-cmd --add-service=ssh --permanent
+
+Explicación: Gestiona la configuración del cortafuegos de Linux en tiempo de ejecución.
+
+Parámetros/Opciones principales:
+
+--add-service=<servicio>: Habilita el tráfico entrante para un servicio definido.
+
+--add-port=<puerto/protocolo>: Abre un puerto específico (ejemplo: --add-port=22/tcp).
+
+--permanent: Guarda los cambios de forma persistente entre reinicios.
+
+--reload: Recarga las reglas activas para aplicar los cambios guardados sin reiniciar la red.
+
+Comandos y herramientas alternativas recomendadas:
+
+firewall-cmd --list-all: Lista las reglas del cortafuegos aplicadas en la zona activa.
+
+4. ssh-keygen -t rsa -b 4096
+
+Explicación: Herramienta para generar, administrar y convertir llaves de autenticación SSH.
+
+Parámetros/Opciones principales:
+
+-t <tipo>: Define el algoritmo de cifrado (rsa, ed25519, ecdsa).
+
+-b <bits>: Especifica la longitud en bits de la llave (4096 bits para mayor seguridad en RSA).
+
+-f <ruta>: Especifica el nombre y ubicación del archivo que guardará la llave.
+
+-N "": Asigna una frase de paso (passphrase) directamente desde el comando.
+
+Comandos y herramientas alternativas recomendadas:
+
+ssh-keygen -t ed25519: Crea llaves basadas en curvas elípticas, más seguras y eficientes.
+
+5. ssh usuario@<IP_DEL_SERVIDOR>
+
+Explicación: Inicia un cliente de shell segura en un servidor remoto.
+
+Parámetros/Opciones principales:
+
+-i <ruta_llave_privada>: Apunta a una clave privada específica si no se utiliza el nombre por defecto (id_rsa).
+
+-p <puerto>: Define el puerto de conexión si el servidor no utiliza el puerto estándar 22.
+
+-v: Activa el modo verbose para depurar fallos en el proceso de autenticación.
+
+Comandos y herramientas alternativas recomendadas:
+
+scp archivo.txt usuario@IP:/ruta: Copia archivos hacia o desde un servidor de forma cifrada mediante SSH.
+
+ssh-copy-id usuario@IP: Comando nativo en Linux/Mac para copiar automáticamente la clave pública al servidor remoto sin requerir comandos de PowerShell o comandos complejos.
