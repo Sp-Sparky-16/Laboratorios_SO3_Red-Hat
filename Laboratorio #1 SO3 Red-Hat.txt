@@ -1,63 +1,235 @@
+===========================================
+LABRATORIO 1
+===========================================
+
+=====================================================
 Practica 1: Instalacion del Sistema Operativo RedHat
+=====================================================
 
-
-NO SE USARON COMANDOS EN LA INSTALACION DE RED HAT
-
-
+=================================================
 Practica 2: Configuración de parametros de red.
+=================================================
+DHCP
+> sudo nmcli connection modify enp0s3 ipv4.method auto
+> sudo nmcli connection modify enp0s3 ipv4.dns "8.8.8.8 8.8.4.4"
+> sudo nmcli connection modify enp0s3 ipv4.ignore-auto-dns yes
+> sudo nmcli connection up enp0s3
 
-> nmcli device status
+ip estatica
+> sudo nmcli connection modify enp0s3 ipv4.addresses 192.168.1.50/24 ipv4.gateway 192.168.1.1 ipv4.dns "8.8.8.8 8.8.4.4" ipv4.method manual
 
--configuracion con DHCP-
+Interfaz 
+> sudo nmtui
 
-> nmcli connection modify enp0s3 ipv4.method auto
-> nmcli connection modify enp0s3 ipv4.dns "8.8.8.8 8.8.4.4"
-> nmcli connection up enp0s3
-
--Configuracion con ip estatica-
-
-> nmcli connection modify enp0s3 ipv4.method manual ipv4.addresses 192.168.1.50/24
-> nmcli connection modify enp0s3 ipv4.gateway 192.168.1.1
-> nmcli connection modify enp0s3 ipv4.dns "8.8.8.8 8.8.4.4"
-> nmcli connection up enp0s3
-
--Confiduracion con nmtui-
-> nmtui
-
-esto es grafico asique es intuitivo todo
-
-
-
+=======================================
 Practica 3: Gestion de Usuario y grupos
+=======================================
+crear usuario
+> sudo useradd -m xxxxxxxx
 
-> sudo useradd nombre_de_usuario
-> sudo passwd nombre_de_usuario
-> sudo usermod -aG whell nombre_de_usuario
+asignar password
+> sudo passwd xxxxxxxxxxx
 
-> id nombre_de_usuario
+agregar usuario a grupo
+> sudo usermod -aG wheel xxxxxxxxxxxx
 
-> sudo groupadd nombre_de_grupo
-> sudo useradd -g nombre_de_grupo nombre_de_usuario
-> sudo passwd nombre_de_usuario
+crear grupo
+> sudo groupadd xxxxxxxx
 
-> sudo userdel -r nombre_de_usuario
-> sudo groupdel nombre_de_grupo
+crear un usuario y agregarlo a un grupo ya existente
+> sudo useradd -m -g guest xxxxxxxxxxxxx
 
+eliminar usuario de un grupo
+> sudo userdel -r xxxxxxxxxx
 
+eliminar grupo
+> sudo groupdel xxxxxxxxx
+
+verificar grupos de un usuario
+> groups xxxxxxxxxx
+
+verificar si exite usuario o grupo
+> id usuarioguest
+> getent group guest
+
+===========================================
 Practica 4: Gestion de Permisos de archivos
+===========================================
 
-> mkdir nombre_de_directorio
-> cd nombre_de_directorio
-> vi nombre_de_archivo.txt
+crear una carpeta
+> mkdir xxxxxxxx
 
-> chmod 700 nombre_de_archivo.txt
-> chmod 070 nombre_de_archivo.txt
+crear y abrir un archivo
+> nado xxxxxxxx.txt
 
-> cd ..
-> mkdir nombre_de_directorio
-> sudo cp nombre_de_directorio/nombre_de_archivo.txt nombre_de_directorio/
+permisos del archivo y carpeta
+usuario:
+> chmod 700 materia/estudiante.txt
 
-> rm -rf nombre_de_directorio
+grupi
+> chmod 070 materia/estudiante.txt
 
-link de la playlist de youtube
-https://www.youtube.com/playlist?list=PL39ueDYTUKTdZEJMyTl5ywn1_-E16y5Al
+copiar un archivo de una carpeta a otra
+> cp materia/estudiante.txt materia2/
+
+eliminar archivo
+> rm -rf materia
+
+======
+EXTRAS
+======
+1. Gestión de Usuarios y Grupos
+useradd (Crear usuarios)
+Sintaxis general: useradd [opciones] nombre_usuario
+
+-m: Crea el directorio personal (/home/usuario) si no existe.
+
+-g [grupo]: Asigna el grupo primario del usuario.
+
+-G [grupo1,grupo2]: Asigna grupos secundarios (separados por comas).
+
+-s [shell]: Especifica la shell predeterminada (ej. /bin/bash o /sbin/nologin).
+
+-u [UID]: Asigna un ID de usuario personalizado.
+
+-d [ruta]: Define una ruta específica para el directorio personal.
+
+-e [YYYY-MM-DD]: Establece una fecha de expiración para la cuenta.
+
+-c "[texto]": Agrega un comentario o nombre completo (campo GECOS).
+
+usermod (Modificar usuarios)
+Sintaxis general: usermod [opciones] nombre_usuario
+
+-aG [grupo]: Agrega el usuario a un grupo secundario sin removerlo de los actuales (la opción -a es obligatoria para no sobrescribir los grupos previos).
+
+-g [grupo]: Cambia el grupo primario.
+
+-s [shell]: Cambia la shell predeterminada.
+
+-L: Bloquea la cuenta (Lock).
+
+-U: Desbloquea la cuenta (Unlock).
+
+-l [nuevo_nombre]: Cambia el nombre de usuario (login).
+
+-d [ruta] -m: Mueve el directorio personal a una nueva ubicación.
+
+userdel (Eliminar usuarios)
+Sintaxis general: userdel [opciones] nombre_usuario
+
+-r: Elimina el directorio personal y el buzón de correo del usuario.
+
+-f: Fuerza la eliminación incluso si el usuario ha iniciado sesión.
+
+groupadd, groupmod, groupdel (Gestión de grupos)
+groupadd -g [GID] nombre_grupo: Crea un grupo con un GID específico.
+
+groupmod -n nuevo_nombre grupo_actual: Renombra un grupo.
+
+groupdel nombre_grupo: Elimina un grupo.
+
+passwd y chage (Contraseñas y expiración)
+passwd [usuario]: Cambia la contraseña de un usuario.
+
+passwd -l [usuario]: Bloquea la contraseña.
+
+passwd -u [usuario]: Desbloquea la contraseña.
+
+passwd -e [usuario]: Fuerza al usuario a cambiar la contraseña en el próximo inicio de sesión.
+
+chage -l [usuario]: Muestra la información sobre la caducidad de la contraseña.
+
+chage -M [días] [usuario]: Define el número máximo de días de validez de la contraseña.
+
+2. Archivos, Directorios y Permisos
+chmod (Modificar permisos)
+Sintaxis general: chmod [opciones] modo archivo
+
+Sintaxis Numérica (Octal): Lectura(4) + Escritura(2) + Ejecución(1)
+
+7 = rwx, 6 = rw-, 5 = r-x, 4 = r--, 0 = ---
+
+Sintaxis Simbólica: [u/g/o/a] [+ / - / =] [r/w/x]
+
+u (user), g (group), o (others), a (all).
+
+Variantes/Parámetros:
+
+-R: Cambia permisos de forma recursiva (incluye subcarpetas y archivos contenidos).
+
+-v: Muestra información detallada de cada archivo procesado.
+
+chown y chgrp (Propiedad de archivos)
+chown usuario archivo: Cambia el usuario propietario.
+
+chown usuario:grupo archivo: Cambia el usuario y el grupo propietario simultáneamente.
+
+chown -R usuario:grupo carpeta/: Aplica el cambio de forma recursiva.
+
+chgrp grupo archivo: Cambia únicamente el grupo propietario.
+
+mkdir y rm (Creación y eliminación)
+mkdir -p ruta/de/carpetas: Crea la estructura completa de directorios anidados si no existen.
+
+mkdir -v carpeta: Imprime un mensaje por cada directorio creado.
+
+rm -r carpeta: Elimina un directorio y su contenido de forma recursiva.
+
+rm -f archivo: Fuerza la eliminación sin solicitar confirmación.
+
+rm -rf carpeta: Combina recursividad y fuerza para eliminar estructuras sin confirmación.
+
+cp y mv (Copiar y mover)
+cp -r origen/ destino/: Copia carpetas de forma recursiva.
+
+cp -a origen/ destino/: Preserva atributos (permisos, fechas, propietario) al copiar.
+
+cp -i origen destino: Solicita confirmación antes de sobrescribir.
+
+mv -i origen destino: Mueve o renombra archivos/directorios pidiendo confirmación si el destino existe.
+
+mv -n origen destino: Mueve sin sobrescribir archivos existentes.
+
+3. Comandos Esenciales para Administración en Red Hat (RHEL)
+Información y Lectura del Sistema
+id [usuario]: Muestra UID, GID y los grupos a los que pertenece la cuenta.
+
+whoami: Muestra el nombre del usuario actual en la sesión.
+
+getent passwd [usuario]: Consulta las entradas en /etc/passwd.
+
+getent group [grupo]: Consulta las entradas en /etc/group.
+
+ls -la: Lista todos los archivos (incluyendo ocultos) con permisos, propietario y tamaño.
+
+Gestión de Paquetes en Red Hat (dnf / rpm)
+dnf install [paquete]: Instala un paquete de software.
+
+dnf remove [paquete]: Desinstala un paquete.
+
+dnf update: Actualiza los paquetes del sistema a la versión más reciente.
+
+dnf search [clave]: Busca paquetes por nombre o descripción.
+
+rpm -qa: Lista todos los paquetes RPM instalados en el sistema.
+
+Gestión de Servicios (systemctl)
+systemctl status [servicio]: Muestra el estado operativo de un daemon (ej. NetworkManager, sshd).
+
+systemctl start [servicio]: Inicia un servicio.
+
+systemctl stop [servicio]: Detiene un servicio.
+
+systemctl restart [servicio]: Reinicia un servicio.
+
+systemctl enable --now [servicio]: Habilita e inicia un servicio de forma automática con el arranque del sistema.
+
+Red y Diagnóstico
+ip addr show: Muestra las direcciones IP y las interfaces de red configuradas.
+
+ip route: Muestra la tabla de enrutamiento del sistema.
+
+ping -c [número] [host]: Envía paquetes ICMP para comprobar conectividad.
+
+resolvectl status: Muestra la configuración actual del DNS.
