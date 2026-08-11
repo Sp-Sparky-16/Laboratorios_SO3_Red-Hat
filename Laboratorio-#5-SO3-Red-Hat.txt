@@ -1,162 +1,361 @@
-=============================================================================
-PRACTICA 1: SINCRONIZACIÓN DE CARPETAS CON RSYNC Y CRONTAB
-=============================================================================
+================================================
+Practica 1: Syncronizacion de carpetas con Rsync
+================================================
 
-# [En Servidor Primario]
-# 1. Crear la carpeta y generar los 100 archivos
-mkdir -p ~/sincronizacion
-touch ~/sincronizacion/archivo{1..100}.txt
+= Servidor 1 =
 
-# 2. Copiar inicialmente el contenido al servidor remoto para validar conectividad
-# (Reemplazar 'usuario' e 'IP_REMOTO' con los datos correspondientes)
-rsync -avz ~/sincronizacion/ usuario@IP_REMOTO:~/sincronizacion_remota/
+mkdir -p ~/sync_folder && cd ~/sync_folder
+touch archivo_{1..100}.txt
 
-# 3. Crear el script de automatización
+rsync -avz -e ssh ~/sync_folder/ usuario@IP_SERVIDOR_REMOTO:/ruta/destino/
+
 cat << 'EOF' > ~/sync_script.sh
 #!/bin/bash
-rsync -avz --delete ~/sincronizacion/ usuario@IP_REMOTO:~/sincronizacion_remota/
+rsync -avz -e ssh /ruta/origen/sync_folder/ usuario@IP_SERVIDOR_REMOTO:/ruta/destino/
 EOF
 
-# Asignar permisos de ejecución al script
 chmod +x ~/sync_script.sh
 
-# 4. Configurar el Crontab para ejecutarse cada 1 minuto
-# Ejecutar 'crontab -e' y añadir la siguiente línea al final:
-* * * * * /bin/bash /home/usuario/sync_script.sh
+crontab -e
+	* * * * * /bin/bash /ruta/absoluta/sync_script.sh >/dev/null 2>&1
 
-# 5. Prueba de validación
-# Crear un nuevo archivo en el servidor primario:
-touch ~/sincronizacion/archivo_prueba_cron.txt
+touch ~/sync_folder/prueba_crontab.txt
 
-# [En Servidor Secundario]
-# Esperar 1 minuto y verificar que el archivo se haya sincronizado:
-ls -la ~/sincronizacion_remota/
+= Servidor 2 =
+
+ls -la /ruta/destino/
 
 
-=============================================================================
-PRACTICA 2: INSTALACIÓN Y CONFIGURACIÓN DEL CLUSTER (PACEMAKER + COROSYNC)
-=============================================================================
+===================================================
+Practica 2: Instalacion y configuracion del Cluster
+===================================================
 
-# [En Ambos Nodos - Configuración Inicial]
-# 1. Actualizar el sistema e instalar los paquetes del cluster
-sudo apt update
-sudo apt install -y pacemaker corosync pcs
+= Nodo 1 =
+sudo hostnamectl set-hostname nodo1
 
-# 2. Habilitar e iniciar el servicio del sistema de configuración del cluster (pcsd)
-sudo systemctl enable --now pcsd
+= Nodo 2 =
+sudo hostnamectl set-hostname nodo2
 
-# 3. Establecer contraseña para el usuario por defecto del cluster 'hacluster'
-echo "hacluster:PASSWORD_SEGURO" | sudo chpasswd
+= en ambos =
+sudo nano /etc/hosts
+	ip nodo1
+	ip nodo2
 
-# [Solo en el Nodo 1 - Configuración del Cluster]
-# 4. Autenticar los nodos del cluster
-sudo pcs host auth nodo1 nodo2 -u hacluster -p PASSWORD_SEGURO
+sudo dnf update -y --nogpgcheck
+sudo subscription-manager repos --enable=rhel-10-for-x86_64-highavailability-rpms
+sudo dnf install -y pacemaker corosync pcs --nogpgcheck
 
-# 5. Generar y configurar el cluster con Corosync
-sudo pcs cluster setup mi_cluster nodo1 nodo2 --force
+sudo passwd hacluster
 
-# 6. Iniciar y habilitar todos los servicios del cluster en los nodos
+= activacion de puertos =
+sudo firewall-cmd --permanent --add-service=high-availability
+sudo firewall-cmd --reload
+
+= nodo 1 =
+sudo pcs host auth nodo1 nodo2 -u hacluster
+
+= ambos =
+sudo pcs cluster setup ha_cluster nodo1 nodo2 --force
 sudo pcs cluster start --all
 sudo pcs cluster enable --all
 
-# 7. Deshabilitar STONITH (si no se cuenta con dispositivo de vallado en el lab)
+
+= nodo 1 =
 sudo pcs property set stonith-enabled=false
 sudo pcs property set no-quorum-policy=ignore
 
-# 8. Configurar la IP Flotante (Virtual IP)
-# (Reemplazar '192.168.1.200' por la IP flotante asignada en el segmento bridge)
-sudo pcs resource create IP_Flotante ocf:heartbeat:IPaddr2 ip=192.168.1.200 cidr_netmask=24 op monitor interval=30s
 
-# 9. Verificar el estado del cluster y los recursos activos
+sudo pcs resource create Virtual_IP ocf:heartbeat:IPaddr2 ip=10.0.0.200 cidr_netmask=24 nic=enp0s3 op monitor interval=10s
+
 sudo pcs status
 
-# [Prueba de Validación]
-# Desde una máquina externa, mantener un ping constante a la IP flotante:
-# ping 192.168.1.200 -t
-# Reiniciar el Nodo 1 ('sudo reboot') y validar que el ping continúe respondiendo a través del Nodo 2.
+= en otra maquina windows o Linux probar disponibilidad =
+ping a la ip flotante
+y reiniciar la maquina de nodo 1
 
+===============================================
+Practica 3: Cluster de Alta Disponibilidad HTTP
+===============================================
 
-=============================================================================
-PRACTICA 3: CLUSTER DE ALTA DISPONIBILIDAD HTTP CON KEEPALIVED
-=============================================================================
+= en ambos =
+sudo dnf install -y nginx
 
-# [En Ambos Servidores Web]
-# 1. Instalar el servidor web Apache y Keepalived
-sudo apt update
-sudo apt install -y apache2 keepalived
+= servidor 1 =
+echo "<h1>Bienvenido a Server 1</h1>" | sudo tee /usr/share/nginx/html/index.html
 
-# 2. Desplegar el archivo HTML identificando cada servidor
+= servidor 2 =
+echo "<h1>Bienvenido a Server 2</h1>" | sudo tee /usr/share/nginx/html/index.html
 
-# [En Servidor 1]
+= ambos =
+= por si el puerto 80 esta ocupado =
+sudo systemctl stop httpd
+sudo systemctl disable httpd
+
+sudo systemctl enable --now nginx
+
+= usar apache en vez de ngix =
+=nodo1=
 echo "<h1>Bienvenido a Server 1</h1>" | sudo tee /var/www/html/index.html
-
-# [En Servidor 2]
+=nodo2=
 echo "<h1>Bienvenido a Server 2</h1>" | sudo tee /var/www/html/index.html
 
-
-# 3. Configuración de Keepalived
-
-# [En Servidor 1 - MASTER]
-sudo cat << 'EOF' > /etc/keepalived/keepalived.conf
-vrrp_script chk_apache {
-    script "/usr/bin/killall -0 apache2"
+=ambos=
+sudo systemctl enable --now httpd
+sudo nano /etc/keepalived/keepalived.conf
+Cambia esta línea dentro del bloque vrrp_script
+vrrp_script check_httpd {
+    script "killall -0 httpd"
     interval 2
+    weight 2
+}
+Y en el bloque vrrp_instance
+track_script {
+        check_httpd
+    }
+= ambos =
+sudo dnf install -y keepalived
+
+sudo nano /etc/keepalived/keepalived.conf
+
+= nodo 1 =
+global_defs {
+    enable_script_security
+}
+
+vrrp_script check_nginx {
+    script "/usr/bin/killall -0 nginx"
+    interval 2
+    weight 2
+    user root
 }
 
 vrrp_instance VI_1 {
     state MASTER
-    interface eth0           # Colocar el nombre de la interfaz de red activa
+    interface enp0s3
     virtual_router_id 51
-    priority 101             # Prioridad más alta para el Master
+    priority 101
     advert_int 1
     authentication {
         auth_type PASS
         auth_pass 12345
     }
     virtual_ipaddress {
-        192.168.1.250        # Dirección IP flotante para el servicio HTTP
+        10.0.0.200/24
     }
     track_script {
-        chk_apache
+        check_nginx
     }
 }
-EOF
 
-# [En Servidor 2 - BACKUP]
-sudo cat << 'EOF' > /etc/keepalived/keepalived.conf
-vrrp_script chk_apache {
-    script "/usr/bin/killall -0 apache2"
+= nodo 2 =
+global_defs {
+    enable_script_security
+}
+
+vrrp_script check_nginx {
+    script "/usr/bin/killall -0 nginx"
     interval 2
+    weight 2
+    user root
 }
 
 vrrp_instance VI_1 {
     state BACKUP
-    interface eth0           # Colocar el nombre de la interfaz de red activa
+    interface enp0s3
     virtual_router_id 51
-    priority 100             # Prioridad más baja para el Backup
+    priority 100
     advert_int 1
     authentication {
         auth_type PASS
         auth_pass 12345
     }
     virtual_ipaddress {
-        192.168.1.250        # Dirección IP flotante para el servicio HTTP
+        10.0.0.200/24
     }
     track_script {
-        chk_apache
+        check_nginx
     }
 }
-EOF
 
-# 4. Iniciar y habilitar Keepalived en ambos servidores
+= ambos =
+
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-protocol=vrrp
+sudo firewall-cmd --reload
+
 sudo systemctl enable --now keepalived
 
-# [Prueba de Validación]
-# Acceder desde el navegador a la IP flotante: http://192.168.1.250 (Debe mostrar Server 1)
-# Detener el servicio de Apache en el Servidor 1 ('sudo systemctl stop apache2')
-# Recargar el navegador; la IP flotante debe responder ahora con el contenido de Server 2.
+sudo setenforce 0
+sudo firewall-cmd --permanent --add-protocol=vrrp
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --reload
 
-===========================================================================================
-Playlist de Youtube
-===========================================================================================
-https://www.youtube.com/playlist?list=PLHUfzZF1KP7U
+= prueba final =
+sudo systemctl stop keepalived
+
+======
+EXTRAS
+======
+Práctica 1: Sincronización de carpetas con Rsync
+
+Creación de archivos en lote
+
+mkdir -p ~/sync_folder && cd ~/sync_folder
+
+Explicación: Crea el directorio de trabajo (el parámetro -p evita errores si la carpeta ya existe) y entra en él inmediatamente.
+
+touch archivo_{1..100}.txt
+
+Explicación: Crea 100 archivos vacíos en un solo paso mediante expansión de corchetes.
+
+Parámetros alternativos: touch {a..z}.txt (para generar archivos por letras).
+
+Sincronización manual remota
+
+rsync -avz -e ssh ~/sync_folder/ usuario@IP_SERVIDOR_REMOTO:/ruta/destino/
+
+Explicación: Sincroniza el contenido local con el servidor destino.
+
+Parámetros utilizados:
+
+-a (archive): Conserva permisos, propietarios, fechas de modificación y enlaces simbólicos.
+
+-v (verbose): Muestra el detalle de la transferencia en consola.
+
+-z (compress): Comprime los datos durante el transporte para ahorrar ancho de banda.
+
+-e ssh: Especifica que la transferencia se hará a través del protocolo seguro SSH.
+
+Parámetros recomendados:
+
+--delete: Borra en el destino los archivos que hayan sido eliminados en el origen.
+
+-P (o --progress): Muestra barras de progreso y permite reanudar descargas interrumpidas.
+
+Automatización con Crontab
+
+crontab -e
+
+Explicación: Abre el editor del programador de tareas del usuario actual.
+
+* * * * * /bin/bash /ruta/absoluta/sync_script.sh >/dev/null 2>&1
+
+Explicación: Define una tarea que ejecuta el script de sincronización cada minuto. Los 5 asteriscos representan: minuto (*), hora (*), día del mes (*), mes (*), día de la semana (*). La redirección >/dev/null 2>&1 descarta las salidas estándar y de error para evitar acumular correos o logs del sistema.
+
+Práctica 2: Cluster de Alta Disponibilidad con Pacemaker y Corosync
+
+Configuración del Entorno y Red
+
+hostnamectl set-hostname nodo1
+
+Explicación: Define el nombre de red persistente de la máquina actual.
+
+subscription-manager repos --enable=rhel-10-for-x86_64-highavailability-rpms
+
+Explicación: Habilita el repositorio oficial de Red Hat que contiene los paquetes de Alta Disponibilidad.
+
+dnf groupinstall -y "High Availability"
+
+Explicación: Instala todos los componentes y dependencias del grupo de Alta Disponibilidad de RHEL.
+
+Administración del Cluster con PCS
+
+systemctl enable --now pcsd
+
+Explicación: Habilita e inicia el demonio de control de la interfaz/CLI del cluster.
+
+pcs host auth nodo1 nodo2 -u hacluster
+
+Explicación: Autentica los nodos del cluster contra el demonio pcsd usando el usuario del sistema hacluster.
+
+Nota de sintaxis: En versiones modernas de RHEL se usa pcs host auth en lugar del antiguo pcs cluster auth.
+
+pcs cluster setup ha_cluster nodo1 nodo2 --force
+
+Explicación: Genera los archivos de configuración del cluster (corosync.conf) e integra los nodos definidos bajo el nombre ha_cluster.
+
+pcs cluster start --all / pcs cluster enable --all
+
+Explicación: Inicia los servicios del cluster (Corosync y Pacemaker) en todos los nodos y configura su arranque automático con el sistema.
+
+pcs property set stonith-enabled=false
+
+Explicación: Desactiva el mecanismo de esgrima (fencing/STONITH). Es obligatorio en entornos de laboratorio sin dispositivos de apagado por hardware.
+
+pcs property set no-quorum-policy=ignore
+
+Explicación: Le indica al cluster de 2 nodos que ignore la pérdida de quorum y mantenga los recursos activos aunque falle un miembro.
+
+pcs resource create Virtual_IP ocf:heartbeat:IPaddr2 ip=10.0.0.200 cidr_netmask=24 nic=enp0s3 op monitor interval=10s
+
+Explicación: Crea el recurso de la IP flotante administrada por Pacemaker.
+
+Parámetros:
+
+ocf:heartbeat:IPaddr2: Agente OCF encargado del manejo de direcciones IP asociadas a interfaces físicas.
+
+ip: La dirección IP Virtual elegida.
+
+cidr_netmask: Máscara de red en notación CIDR.
+
+nic: Nombre específico de la tarjeta de red física donde se montará el alias IP.
+
+op monitor interval=10s: Comprueba el estado de la IP cada 10 segundos.
+
+pcs status
+
+Explicación: Muestra el estado operativo del cluster, los nodos en línea y en qué nodo está ejecutándose cada recurso.
+
+Práctica 3: Cluster de Alta Disponibilidad HTTP con Keepalived
+
+Gestión del Servidor Web (Nginx/Apache)
+
+dnf install -y nginx / dnf install -y httpd
+
+Explicación: Instala el servidor web elegido desde el gestor de paquetes.
+
+ss -tulpn | grep :80
+
+Explicación: Muestra qué proceso o demonio (httpd, nginx, etc.) tiene bloqueado el puerto HTTP 80.
+
+Parámetros: -t (TCP), -u (UDP), -l (Listening/Escuchando), -p (Muestra PID/Proceso), -n (Formatos numéricos de puertos).
+
+Servicio Keepalived
+
+dnf install -y keepalived psmisc
+
+Explicación: Instala Keepalived junto con el paquete psmisc (que provee la herramienta killall requerida para verificar el estado de los procesos).
+
+setenforce 0
+
+Explicación: Pone SELinux en modo permisivo temporalmente para evitar que bloquee la ejecución de los scripts internos de comprobación de Keepalived.
+
+firewall-cmd --permanent --add-protocol=vrrp && firewall-cmd --reload
+
+Explicación: Permite la comunicación del protocolo VRRP (ip protocol 112) a través del firewall de Red Hat para que los nodos transmitan sus latidos (heartbeats) correctamente.
+
+keepalived -t -f /etc/keepalived/keepalived.conf
+
+Explicación: Verifica la sintaxis del archivo de configuración sin levantar el servicio.
+
+Parámetros: -t (test de sintaxis), -f (Ruta específica del archivo de configuración).
+
+Estructura del archivo /etc/keepalived/keepalived.conf
+
+vrrp_script check_nginx { script "/usr/bin/killall -0 nginx" ... }
+
+Explicación: Bloque que ejecuta la prueba de salud del servicio web cada determinado intervalo de tiempo.
+
+vrrp_instance VI_1 { ... }
+
+Explicación: Define la instancia del enrutador virtual. Sus parámetros principales son:
+
+state MASTER / state BACKUP: Define el rol predeterminado del nodo.
+
+interface enp0s3: La tarjeta de red física sobre la que se asignará la IP flotante.
+
+virtual_router_id 51: Identificador del grupo VRRP (debe ser idéntico en ambos servidores).
+
+priority 101 (Master) / priority 100 (Backup): Prioridad del equipo. El valor más alto obtiene la IP flotante.
+
+virtual_ipaddress { ... }: La dirección IP Virtual asignada al grupo.
