@@ -1,151 +1,196 @@
-===============================================================================
-PRACTICA 1: COMPARTIR ARCHIVOS ENTRE LINUX UTILIZANDO NFS (RHEL 10)
-===============================================================================
-
--------------------------------------------------------------------------------
-1. CONFIGURACION EN EL SERVIDOR NFS (RHEL 10)
--------------------------------------------------------------------------------
-
-# 1.1. Instalar las utilidades de NFS
+=========================================================
+Practica 1: compartir archivos entre linux utilizando NFS
+=========================================================
 sudo dnf install -y nfs-utils
-
-# 1.2. Crear el directorio a compartir
 sudo mkdir -p /OS3
+sudo touch /OS3/Adrian{1..100}.txt
 
-# 1.3. Crear los 100 archivos requeridos dentro del directorio
-sudo bash -c 'for i in {1..100}; do touch /OS3/Adrian${i}.txt; done'
-
-# 1.4. Asignar permisos y propietario para acceso de lectura y escritura
 sudo chmod -R 777 /OS3
-sudo chown -R nobody:nobody /OS3
 
-# 1.5. Configurar el archivo de exportaciones (/etc/exports)
-# Reemplazar 192.168.1.0/24 con el segmento de red o IP cliente correspondiente
-echo "/OS3 192.168.1.0/24(rw,sync,no_root_squash)" | sudo tee -a /etc/exports
+sudo nano /etc/exports
+	/OS3 *(rw,sync,no_root_squash)
 
-# 1.6. Iniciar y habilitar el servicio NFS
+sudo exportfs -r -v
 sudo systemctl enable --now nfs-server
 
-# 1.7. Aplicar la nueva configuración de exportación
-sudo exportfs -rav
-
-# 1.8. Configurar el cortafuegos (Firewalld)
-sudo firewall-cmd --permanent --add-service=nfs
-sudo firewall-cmd --permanent --add-service=rpc-bind
-sudo firewall-cmd --permanent --add-service=mountd
+sudo firewall-cmd --add-service=nfs --permanent
 sudo firewall-cmd --reload
 
-
--------------------------------------------------------------------------------
-2. CONFIGURACION EN EL CLIENTE NFS (RHEL 10)
--------------------------------------------------------------------------------
-
-# 2.1. Instalar las utilidades cliente de NFS
+= cliente =
 sudo dnf install -y nfs-utils
+sudo mkdir -p /mnt/OS3
 
-# 2.2. Crear el punto de montaje local
-sudo mkdir -p /mnt/OS3_compartido
+sudo mount -t nfs <IP_DEL_SERVIDOR>:/OS3 /mnt/OS3
 
-# 2.3. Montar manualmente el directorio (Reemplazar IP_SERVIDOR por la IP real)
-sudo mount -t nfs IP_SERVIDOR:/OS3 /mnt/OS3_compartido
+ls /mnt/OS3
 
-# 2.4. Verificar los archivos montados
-ls -l /mnt/OS3_compartido
+sudo nano /etc/fstab
 
-# 2.5. Configurar el montaje automático al reiniciar (/etc/fstab)
-# Agregar la siguiente línea al final del archivo /etc/fstab:
-echo "IP_SERVIDOR:/OS3 /mnt/OS3_compartido nfs defaults 0 0" | sudo tee -a /etc/fstab
+<IP_DEL_SERVIDOR>:/OS3    /mnt/OS3    nfs    defaults,_netdev    0  0
 
-# 2.6. Probar la configuración de fstab sin reiniciar
+sudo umount /mnt/OS3
 sudo mount -a
+ls /mnt/OS3
 
-# 2.7. Pasos para la prueba visual requerida:
-# - Ejecutar 'ls /mnt/OS3_compartido' en el cliente para mostrar los 100 archivos.
-# - Reiniciar la VM cliente con 'sudo reboot'.
-# - Al iniciar sesión, ejecutar 'df -h' o 'ls /mnt/OS3_compartido' para comprobar
-#   que se montó automáticamente.
+sudo reboot
 
+df -h | grep OS3
+ls /mnt/OS3
 
-===============================================================================
-PRACTICA 2: FILESERVER COMPATIBLE CON WINDOWS UTILIZANDO SAMBA (RHEL 10)
-===============================================================================
+==========================================================================
+Practica 2: Creacion de fileserver compatible con Windows utilizando SAMBA
+==========================================================================
 
--------------------------------------------------------------------------------
-1. CONFIGURACION EN EL SERVIDOR LINUX (RHEL 10)
--------------------------------------------------------------------------------
-
-# 1.1. Instalar Samba y sus paquetes necesarios
 sudo dnf install -y samba samba-client
+sudo systemctl enable --now smb nmb
 
-# 1.2. Crear directorio compartido y los 100 archivos
-sudo mkdir -p /samba/compartido
-sudo bash -c 'for i in {1..100}; do touch /samba/compartido/adrian${i}; done'
-
-# 1.3. Crear grupo de usuarios y usuario del sistema/Samba
-sudo groupadd sambagroup
-sudo useradd -M -s /sbin/nologin adrianuser
-sudo usermod -aG sambagroup adrianuser
-
-# 1.4. Establecer contraseña de Samba para el usuario
+sudo groupadd smbgroup
+sudo useradd -m -g smbgroup adrianuser
 sudo smbpasswd -a adrianuser
 
-# 1.5. Configurar permisos de sistema y SELinux en RHEL 10
-sudo chown -R root:sambagroup /samba/compartido
+sudo mkdir -p /samba/compartido
+sudo chown -R adrianuser:smbgroup /samba/compartido
 sudo chmod -R 775 /samba/compartido
+
 sudo chcon -t samba_share_t /samba/compartido
 
-# 1.6. Respaldar y configurar el archivo /etc/samba/smb.conf
-sudo cp /etc/samba/smb.conf /etc/samba/smb.conf.bak
+sudo touch /samba/compartido/adrian{1..100}
+sudo chown adrianuser:smbgroup /samba/compartido/adrian*
 
-# Agregar la siguiente bloque al final del archivo /etc/samba/smb.conf:
-/*
+sudo nano /etc/samba/smb.conf
 [Compartido]
-   comment = Carpeta Compartida Samba
    path = /samba/compartido
-   valid users = @sambagroup
+   valid users = @smbgroup
    guest ok = no
    writable = yes
    browsable = yes
-   create mask = 0664
-   directory mask = 0775
-*/
 
-# 1.7. Habilitar e iniciar los servicios de Samba
-sudo systemctl enable --now smb nmb
+testparm
+sudo systemctl restart smb nmb
 
-# 1.8. Permitir tráfico de Samba en el Firewall
-sudo firewall-cmd --permanent --add-service=samba
+sudo firewall-cmd --add-service=samba --permanent
 sudo firewall-cmd --reload
 
+1. Mapear la unidad de red
 
--------------------------------------------------------------------------------
-2. CONFIGURACION Y VALIDACION EN WINDOWS CLIENTE
--------------------------------------------------------------------------------
+Abra el Explorador de archivos en Windows.
 
-# 2.1. Mapear unidad de red en Windows:
-# - Abrir Explorador de archivos > Este equipo.
-# - Clic en "Conectar a unidad de red".
-# - Seleccionar una letra de unidad (ejemplo: Z:).
-# - En Carpeta escribir: \\IP_SERVIDOR_LINUX\Compartido
-# - Marcar "Conectar usando credenciales diferentes".
-# - Ingresar credenciales:
-#     Usuario: adrianuser
-#     Contraseña: (la configurada en smbpasswd)
+Vaya a Este equipo, haga clic en los tres puntos (...) o en la barra superior y seleccione Mapear red (o Conectar a unidad de red).
 
-# 2.2. Modificación de archivo desde Windows:
-# - Entrar al disco mapeado (ejemplo Z:\).
-# - Abrir el archivo 'adrian99' con Bloc de notas.
-# - Escribir dentro la cadena: el zumzum de la carabela
-# - Guardar los cambios y cerrar.
+Seleccione la letra de unidad deseada (por ejemplo, Z:).
 
+En el campo Carpeta, ingrese:
+\\<IP_DEL_SERVIDOR_LINUX>\Compartido
 
--------------------------------------------------------------------------------
-3. VALIDACION EN LINUX
--------------------------------------------------------------------------------
+Marque la casilla Conectar usando credenciales diferentes y presione Finalizar.
 
-# 3.1. Verificar la modificación del archivo desde la terminal de RHEL 10:
+Ingrese el usuario adrianuser y la contraseña configurada previamente en Samba.
+
+2. Edición del archivo adrian99
+
+Ingrese a la unidad mapeada Z: y ubique el archivo adrian99.
+
+Ábralo con el Bloc de notas (o cualquier editor de texto).
+
+Escriba la frase exacta: el zumzum de la carabela
+
+Guarde los cambios (Ctrl + G) y cierre el archivo.
+
+= verificacion en Linux -
 cat /samba/compartido/adrian99
 
-# Salida esperada:
-# el zumzum de la carabela
-===============================================================================
+==================================================================
+Practica 3: Creacion de controlador de Dominio con cliente Windows
+==================================================================
+
+sudo hostnamectl set-hostname dc1.so3.inet
+
+sudo nano /etc/hosts
+<IP_DEL_SERVIDOR>   dc1.so3.inet   dc1   SO3.INET
+
+sudo dnf install -y samba-client krb5-workstation
+
+sudo rm -f /etc/samba/smb.conf
+
+sudo dnf install -y epel-release
+sudo dnf install -y samba-dc-libs samba-winbind
+
+sudo rm -f /etc/samba/smb.conf
+
+sudo useradd -m lanegracubana
+sudo smbpasswd -a lanegracubana
+
+sudo nano /etc/samba/smb.conf
+[global]
+   workgroup = SO3
+   netbios name = NODO1
+   server string = Servidor Samba SO3
+   
+   # Modo Controlador de Dominio NT4
+   domain logons = yes
+   domain master = yes
+   local master = yes
+   preferred master = yes
+   os level = 65
+   
+   security = user
+   passdb backend = tdbsam
+
+[netlogon]
+   path = /var/lib/samba/netlogon
+   read only = yes
+   guest ok = yes
+
+sudo smbpasswd -a lanegracubana
+
+sudo mkdir -p /var/lib/samba/netlogon
+sudo systemctl restart smb nmb
+sudo systemctl enable smb nmb
+
+sudo firewall-cmd --add-service=samba --permanent
+sudo firewall-cmd --reload
+
+Paso Final: Unir Windows y Autenticar
+1. Configurar la red en Windows
+
+En la máquina virtual con Windows, abre Conexiones de red (puedes presionar Win + R, escribir ncpa.cpl y presionar Enter).
+
+Haz clic derecho sobre tu adaptador de red activo y selecciona Propiedades.
+
+Selecciona Protocolo de Internet versión 4 (TCP/IPv4) y haz clic en Propiedades.
+
+En la opción Servidor DNS preferido, coloca la dirección IP de tu servidor Red Hat 10.
+
+2. Unir el equipo al Dominio SO3
+
+Presiona Win + R, escribe sysdm.cpl y presiona Enter para abrir las Propiedades del Sistema.
+
+En la pestaña Nombre de equipo, haz clic en el botón Cambiar...
+
+En la sección Miembro de, selecciona Dominio e ingresa:
+SO3
+
+Haz clic en Aceptar.
+
+Cuando la ventana emergente pida las credenciales para unirse al dominio, ingresa:
+
+Usuario: lanegracubana
+
+Contraseña: 20252751
+
+Al recibir el mensaje de bienvenida al dominio SO3, presiona Aceptar y reinicia la VM de Windows.
+
+3. Prueba de autenticación (Demostración de la práctica)
+
+Una vez que la VM de Windows haya reiniciado, en la pantalla de bienvenida selecciona la opción Otro usuario (o Cambiar de usuario).
+
+Para iniciar sesión, escribe:
+
+Usuario: lanegracubana
+
+Contraseña: 20252751
+
+Al entrar al escritorio, abre una terminal de comando (cmd) en Windows y ejecuta:
+whoami
+
+(Deberá mostrar SO3\lanegracubana, lo cual confirma que el usuario está autenticado correctamente en el dominio).
