@@ -1,177 +1,204 @@
-===============================================================================
-LABORATORIO 8
-===============================================================================
+==================================================
+Practica 1: Instalacion y configuracion de Docker
+==================================================
 
-# Práctica 1: Instalación y Configuración de Docker/Podman en RHEL 10 (AWS EC2)
+acordate de habilitar los puertos en tu platadorma de cloud 
 
-## Descripción
-Esta práctica consiste en el despliegue de un servidor web NGINX dentro de un contenedor en una instancia EC2 de AWS corriendo Red Hat Enterprise Linux 10. Se realiza la redirección del puerto 8888 del host hacia el puerto 80 del contenedor y se vincula un volumen persistente que sirve una página HTML personalizada con los datos del alumno.
+sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
 
----
+sudo docker pull nginx
 
-## 1. Preparación del Entorno y Volumen Persistente
-
-Creación de la estructura de directorios y del archivo `index.html` en la ruta persistente requerida `/home/website`:
-
-```bash
-# Crear el directorio del volumen persistente
 sudo mkdir -p /home/website
+echo "<h1>Angelo Marcelo Cerda Javier - 2025-2751</h1>" | sudo tee /home/website/index.html
 
-# Crear la página web index.html con los datos correspondientes
-cat << 'EOF' | sudo tee /home/website/index.html
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Practica Docker / Podman</title>
-</head>
-<body>
-    <h1>Angelo Marcelo Cerda Javier</h1>
-    <h2>Matrícula: 2025-2751</h2>
-</body>
-</html>
-EOF
-
-# Ajustar SELinux a modo permisivo para autorizar la lectura de volúmenes montados
-sudo setenforce 0
-
-# Habilitar el reenvío de paquetes IP (IP Forwarding) en el kernel
-sudo sysctl -w net.ipv4.ip_forward=1
-
-# Descargar la imagen de NGINX desde Docker Hub
-sudo podman pull nginx
-
-# Eliminar cualquier contenedor previo con el mismo nombre (opcional)
-sudo podman rm -f nginx-server 2>/dev/null
-
-# Crear y ejecutar el contenedor con redirección de puerto y volumen persistente
-sudo podman run -d \
-  -p 0.0.0.0:8888:80 \
-  -v /home/website:/usr/share/nginx/html:z \
-  --name nginx-server \
+sudo docker run -d \
+  --name nginx-web \
+  -p 8888:80 \
+  -v /home/website:/usr/share/nginx/html:Z \
   nginx
 
-curl [http://127.0.0.1:8888](http://127.0.0.1:8888)
+sudo firewall-cmd --add-port=8888/tcp --permanent
+sudo firewall-cmd --reload
 
-[http://3.134.113.12:8888](http://3.134.113.12:8888)
-
-
-= PRACTICA 2 =
+====================================
+Practica 2: Instalacion de Portainer
+====================================
 
 sudo docker volume create portainer_data
 
 sudo docker run -d \
   -p 8000:8000 \
   -p 9443:9443 \
-  -p 9000:9000 \
   --name portainer \
   --restart=always \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v portainer_data:/data \
   portainer/portainer-ce:latest
 
-sudo docker ps
+sudo firewall-cmd --add-port=9443/tcp --permanent
+sudo firewall-cmd --reload
 
-https://3.134.113.120:9443
+busca setup token para poder iniciar sesion
+sudo docker logs portainer | grep "setup token"
 
-En la pantalla inicial de configuración:
+entra a tu ip con el puerto 9443
 
-Crea el usuario administrador especificando una contraseña.
+Paso 3: Acceder a Portainer e inicializar la cuenta
+Abre el navegador web e ingresa utilizando la IP de tu servidor (o localmente si estás dentro de un entorno de escritorio):
 
-Haz clic en Create user.
+Localmente: [https://127.0.0.1:9443](https://127.0.0.1:9443)
 
-Al estar vinculado al socket local /var/run/docker.sock, Portainer detectará automáticamente el entorno local (Docker Engine del host). Haz clic en la tarjeta del entorno local para ingresar al panel de control.
+Desde tu máquina anfitriona/red: [https://10.0.0.105:9443](https://10.0.0.105:9443) (o [https://10.0.0.200:9443](https://10.0.0.200:9443))
 
-Paso 4: Detener el contenedor de NGINX desde Portainer
-Dentro del panel de Portainer, en el menú lateral izquierdo, haz clic en Containers.
+Nota: El navegador emitirá una advertencia de seguridad SSL/TLS (certificado autofirmado). Acepta la advertencia para continuar.
 
-Ubica en la lista el contenedor correspondiente a NGINX (de la práctica anterior).
+En la pantalla inicial de Portainer:
 
-Marca la casilla de verificación situada al lado del contenedor NGINX.
+Crea el usuario administrador (admin) e ingresa una contraseña segura de al menos 12 caracteres.
 
-En la barra de acciones superior, haz clic en el botón Stop.
+Haz clic en la opción de la izquierda: Get Started (Proceed using the local environment which Portainer is running in).
 
-Verifica que el estado (State) del contenedor cambie a stopped (en color rojo/gris).
+Esto te conectará directamente al motor de Docker local de tu servidor para completar los pasos finales de la práctica:
 
-Paso 5: Comprobar el resultado en el navegador Web
-Abre una nueva pestaña en el navegador e intenta acceder a la dirección de tu servidor NGINX (usando el puerto donde corría NGINX, por ejemplo: [http://3.134.113.120](http://3.134.113.120) o el puerto que le hayas asignado).
+Haz clic en el entorno local que aparecerá en pantalla.
 
-Verás que la página ya no carga (mostrará un error de Conexión rechazada o No se puede acceder al sitio web), confirmando que el servicio NGINX fue detenido exitosamente desde la interfaz de Portainer.
+Ve a la sección Containers en el menú de la izquierda.
+
+Selecciona el contenedor de NGINX (nginx-web).
+
+Presiona el botón Stop para detenerlo.
+
+Abre una pestaña nueva e ingresa a [http://10.0.0.105:8888](http://10.0.0.105:8888) (o 127.0.0.1:8888) para verificar y tomar la captura donde se confirme que el sitio ya no está accesible.
 
 
-= PRACTICA 3 =
+=============================================================================
+Practica #3: IDespliegue de contenedor de Wordpress utilizando Docker-Compose
+=============================================================================
 
-# 1. Instalacion de paquetes de Docker en RHEL
-sudo dnf install -y dnf-plugins-core
-sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin nano
+sudo docker compose version
 
-# 2. Habilitar e iniciar el servicio de Docker
-sudo systemctl enable --now docker
+mkdir -p ~/wordpress-compose && cd ~/wordpress-compose
 
-# 3. Creacion de directorio de trabajo
-mkdir -p ~/wordpress-docker && cd ~/wordpress-docker
-
-# 4. Creacion de archivo docker-compose.yml
 nano docker-compose.yml
+version: '3.8'
 
-	services:
+services:
   db:
-    image: mariadb:10.6
+    image: mysql:8.0
     container_name: wordpress_db
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root_password_seguro
-      MYSQL_DATABASE: wordpress
+      MYSQL_ROOT_PASSWORD: RootPassword123!
+      MYSQL_DATABASE: wordpress_db
       MYSQL_USER: wp_user
-      MYSQL_PASSWORD: wp_password_seguro
+      MYSQL_PASSWORD: WpPassword123!
     volumes:
       - db_data:/var/lib/mysql
-    networks:
-      wp-network:
-        ipv4_address: 172.20.0.2
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password_seguro"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   wordpress:
     image: wordpress:latest
     container_name: wordpress_app
     restart: always
-    depends_on:
-      db:
-        condition: service_healthy
     ports:
-      - "80:80"
+      - "8080:80"
     environment:
-      WORDPRESS_DB_HOST: 172.20.0.2:3306
-      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress_db
       WORDPRESS_DB_USER: wp_user
-      WORDPRESS_DB_PASSWORD: wp_password_seguro
+      WORDPRESS_DB_PASSWORD: WpPassword123!
+    depends_on:
+      - db
     volumes:
-      - wordpress_data:/var/www/html
-    networks:
-      wp-network:
-        ipv4_address: 172.20.0.3
+      - wp_data:/var/www/html
 
 volumes:
   db_data:
-  wordpress_data:
+  wp_data:
 
-networks:
-  wp-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+sudo firewall-cmd --add-port=8080/tcp --permanent
+sudo firewall-cmd --reload
 
-# 5. Despliegue de los contenedores
 sudo docker compose up -d
 
-# 6. Verificacion del estado de los contenedores y healthcheck
 sudo docker compose ps
 
-# 7. Prueba de conexion a la BD desde la app
-sudo docker compose exec wordpress php -r "echo @mysqli_connect('172.20.0.2', 'wp_user', 'wp_password_seguro', 'wordpress') ? 'Conexion Exitosa' : 'Error de Conexion';"
+Una vez que cargas la página de WordPress en tu navegador (ej. [http://10.0.0.105:8080](http://10.0.0.105:8080)), debes seguir estos pasos para completar la instalación inicial requerida por la práctica:
+
+Paso 1: Seleccionar el idioma
+
+Elige Español (o English) en la lista inicial.
+
+Haz clic en Continuar (Continue).
+
+Paso 2: Formulario de configuración del sitio
+Completa los campos con tus datos:
+
+Título del sitio: Escribe un nombre para tu proyecto (ej. Sitio Web - Angelo Cerda).
+
+Nombre de usuario: Crea un usuario administrador (ej. admin o tu nombre).
+
+Contraseña: Asigna una contraseña segura y guárdala.
+
+Tu correo electrónico: Ingresa tu dirección de correo electrónico.
+
+Visibilidad en motores de búsqueda: Puedes dejar la casilla desmarcada.
+
+Paso 3: Finalizar la instalación
+
+Haz clic en el botón Instalar WordPress.
+
+Aparecerá el mensaje de confirmación "¡Logrado!" / "Success!".
+
+Paso 4: Iniciar sesión
+
+Presiona el botón Acceder e ingresa con el usuario y la contraseña que creaste.
+
+Accederás al panel de administración (Dashboard) de WordPress, lo que confirma que tanto la aplicación como la base de datos MySQL están funcionando correctamente.
+
+Para dejar constancia de la entrega de la práctica o personalizar el sitio según las indicaciones de tu clase, realiza los siguientes pasos finales:
+
+1. Publicar una entrada o editar la portada con tu información
+
+En el menú lateral izquierdo, ve a Entradas > Añadir nueva entrada.
+
+Coloca como título: Práctica 3 - WordPress con Docker Compose.
+
+En el cuerpo del contenido, escribe tus datos personales (Nombre y Matrícula).
+
+Haz clic en el botón superior derecho Publicar.
+
+2. Ver tu sitio desplegado en producción
+
+En la barra superior negra, pasa el cursor sobre el icono de la casa o el nombre de tu sitio y haz clic en Visitar el sitio (o abre [http://10.0.0.105:8080](http://10.0.0.105:8080) en una pestaña de incógnito).
+
+Confirma que tu publicación aparezca en la página principal.
+
+por si el puerto 8080 esta usasdo
+
+sudo ss -tulpn | grep 8080
+
+sudo lsof -i :8080
+
+sudo systemctl stop httpd
+sudo systemctl disable httpd
+
+sudo systemctl stop nginx
+sudo systemctl disable nginx
+
+sudo kill -9 <PID>
+
+sudo fuser -k 8080/tcp
+
+sudo docker stop $(sudo docker ps -q)
+sudo docker rm $(sudo docker ps -a -q)
+sudo docker network prune -f
+
+wordpress:
+    ports:
+      - "8085:80"
+
+sudo firewall-cmd --add-port=8085/tcp --permanent
+sudo firewall-cmd --reload
+sudo docker compose up -d
