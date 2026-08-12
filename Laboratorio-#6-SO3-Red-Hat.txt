@@ -2,170 +2,242 @@
 SISTEMAS OPERATIVOS Y SEGURIDAD - LABORATORIO
 =============================================================================
 
------------------------------------------------------------------------------
-PRACTICA 1: CIFRADO CON GPG2
------------------------------------------------------------------------------
+====================
+Practica 1 - Cifrado
+====================
+# Instalar el paquete en RHEL 10
+sudo dnf install -y gnupg2
 
-# 1. Instalar gpg2 (ejecutar según la distribución)
-# En Debian/Ubuntu:
-sudo apt update && sudo apt install gnupg2 -y
-# En RHEL/Rocky Linux:
-sudo dnf install gnupg2 -y
+# Verificar que la herramienta esté disponible
+gpg2 --version
 
-# 2. Crear un directorio y un archivo de prueba
-mkdir ~/practica_cifrado
+# Crear el directorio de la práctica y acceder a él
+mkdir -p ~/practica_cifrado
 cd ~/practica_cifrado
-echo "Este es el contenido confidencial del archivo de seguridad" > documento.txt
 
-# 3. Cifrar el archivo de forma simétrica (solicitará una contraseña en pantalla)
-gpg2 --symmetric --cipher-algo AES256 documento.txt
+# Crear un archivo de prueba con texto dentro
+echo "Este es el contenido confidencial del archivo." > documento.txt
 
-# 4. Intentar acceder al archivo cifrado (mostrará caracteres ilegibles binarios)
+# Verificar el contenido original
+cat documento.txt
+
+gpg2 --pinentry-mode loopback -c documento.txt
+
+# Intentar leer el archivo cifrado con cat
 cat documento.txt.gpg
 
-# 5. Descifrar el archivo mostrando su contenido por consola
-gpg2 --decrypt documento.txt.gpg
+gpg2 --pinentry-mode loopback -d documento.txt.gpg
 
 
------------------------------------------------------------------------------
-PRACTICA 2: CONTROL DE TRAFICO CON IPTABLES Y UFW / FIREWALL-CMD
------------------------------------------------------------------------------
+=========================================
+Practica 2 - IP tables - UFW/Firewall-cmd
+=========================================
+# Instalar los paquetes necesarios
+sudo dnf install -y httpd vsftpd openssh-server
 
-### FASE 1: HABILITAR SERVICIOS (HTTP, FTP, SSH) ###
-
-# En Debian/Ubuntu:
-sudo apt install apache2 vsftpd openssh-server -y
-sudo systemctl enable --now apache2 vsftpd ssh
-
-# En RHEL/Rocky Linux:
-sudo dnf install httpd vsftpd openssh-server -y
+# Iniciar y habilitar los servicios
 sudo systemctl enable --now httpd vsftpd sshd
 
-# Comprobar el estado de los servicios:
-sudo systemctl status apache2 httpd vsftpd ssh sshd --no-pager
+# Verificar el estado operativo de los servicios
+sudo systemctl status httpd vsftpd sshd
 
+por si el puerto 90 falla
+sudo ss -tulpn | grep :80
 
-### FASE 2: BLOQUEO CON IPTABLES ###
+sudo systemctl stop nginx
+sudo systemctl disable nginx
 
-# Bloquear tráfico entrante en los puertos 80 (HTTP), 21 (FTP) y 22 (SSH)
+# Asegurar la instalación de la herramienta iptables
+sudo dnf install -y iptables iptables-services
+
+# Bloquear las conexiones entrantes a los puertos 80 (HTTP), 21 (FTP) y 22 (SSH)
 sudo iptables -A INPUT -p tcp --dport 80 -j DROP
 sudo iptables -A INPUT -p tcp --dport 21 -j DROP
 sudo iptables -A INPUT -p tcp --dport 22 -j DROP
 
-# Mostrar las reglas activas de iptables para verificar el bloqueo
+# Verificar que las reglas estén aplicadas
 sudo iptables -L -n -v
 
-
-### FASE 3: DESBLOQUEO CON IPTABLES ###
-
-# Eliminar las reglas de bloqueo previamente añadidas
+# Eliminar las reglas de bloqueo agregadas previamente
 sudo iptables -D INPUT -p tcp --dport 80 -j DROP
 sudo iptables -D INPUT -p tcp --dport 21 -j DROP
 sudo iptables -D INPUT -p tcp --dport 22 -j DROP
 
+# Verificar que el listado esté limpio o sin los bloqueos
+sudo iptables -L -n -v
 
-### FASE 4: MANEJO CON EL FIREWALL DE LA DISTRIBUCIÓN ###
+# Asegurar que firewalld esté iniciado
+sudo systemctl enable --now firewalld
 
-# ---- OPCIÓN A: Si tu distro es basada en DEBIAN (UFW) ----
-# Habilitar el firewall
-sudo ufw enable
+# Bloquear los puertos agregando la regla de rechazo (rich-rules o remoción de servicios)
+sudo firewall-cmd --add-rich-rule='rule family="ipv4" port port="80" protocol="tcp" reject'
+sudo firewall-cmd --add-rich-rule='rule family="ipv4" port port="21" protocol="tcp" reject'
+sudo firewall-cmd --add-rich-rule='rule family="ipv4" port port="22" protocol="tcp" reject'
 
-# Bloquear los puertos
-sudo ufw deny 80/tcp
-sudo ufw deny 21/tcp
-sudo ufw deny 22/tcp
-sudo ufw status verbose
-
-# Permitir y restablecer el tráfico de nuevo
-sudo ufw allow 80/tcp
-sudo ufw allow 21/tcp
-sudo ufw allow 22/tcp
-sudo ufw status verbose
-
-
-# ---- OPCIÓN B: Si tu distro es basada en RED HAT (Firewall-cmd) ----
-# Bloquear los puertos
-sudo firewall-cmd --permanent --remove-service={http,ftp,ssh}
-sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" port port="80" protocol="tcp" drop'
-sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" port port="21" protocol="tcp" drop'
-sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" port port="22" protocol="tcp" drop'
-sudo firewall-cmd --reload
+# Listar la configuración activa para verificar los bloqueos
 sudo firewall-cmd --list-all
 
-# Permitir y restablecer el tráfico de nuevo (Remover reglas rich y habilitar servicios estándar)
-sudo firewall-cmd --permanent --remove-rich-rule='rule family="ipv4" port port="80" protocol="tcp" drop'
-sudo firewall-cmd --permanent --remove-rich-rule='rule family="ipv4" port port="21" protocol="tcp" drop'
-sudo firewall-cmd --permanent --remove-rich-rule='rule family="ipv4" port port="22" protocol="tcp" drop'
-sudo firewall-cmd --permanent --add-service={http,ftp,ssh}
+# Retirar las reglas de bloqueo
+sudo firewall-cmd --remove-rich-rule='rule family="ipv4" port port="80" protocol="tcp" reject'
+sudo firewall-cmd --remove-rich-rule='rule family="ipv4" port port="21" protocol="tcp" reject'
+sudo firewall-cmd --remove-rich-rule='rule family="ipv4" port port="22" protocol="tcp" reject'
+
+# Permitir los servicios de forma explícita
+sudo firewall-cmd --add-service={http,ftp,ssh} --permanent
 sudo firewall-cmd --reload
+
+# Confirmar la apertura de puertos en la zona activa
 sudo firewall-cmd --list-all
 
+====================================
+Practica 3 -Instalacion de IDS snort
+====================================
+sudo dnf install -y epel-release
 
------------------------------------------------------------------------------
-PRACTICA 3: INSTALACION Y CONFIGURACION DE IDS SNORT
------------------------------------------------------------------------------
+sudo dnf install -y gcc gcc-c++ make cmake libpcap-devel pcre2-devel zlib-ng-compat-devel flex bison
 
-# 1. Instalar Snort
-# En Debian/Ubuntu:
-sudo apt update && sudo apt install snort -y
-# En RHEL/Rocky Linux:
-sudo dnf install snort -y
+sudo dnf install git -y
 
-# 2. Agregar las reglas personalizadas al archivo local.rules
-# Abrir el archivo de reglas locales:
-# (Para sistemas Debian suele ubicarse en /etc/snort/rules/local.rules)
-# (Para compilaciones o RHEL verificar ruta, comúnmente /etc/snort/local.rules)
+cd ~
+git clone https://github.com/snort3/libdaq.git
+cd libdaq
+./bootstrap
+./configure
+make
+sudo make install
 
-sudo bash -c 'cat >> /etc/snort/rules/local.rules << EOF
-alert icmp any any -> any any (msg:"ALERTA: Trafico ICMP detectado (Ping)"; sid:1000001; rev:1;)
-alert tcp any any -> any 21 (msg:"ALERTA: Trafico de conexion al puerto 21 FTP"; sid:1000002; rev:1;)
-alert tcp any any -> any 22 (msg:"ALERTA: Trafico de conexion al puerto 22 SSH"; sid:1000003; rev:1;)
-alert tcp any any -> any 80 (msg:"ALERTA: Trafico de conexion al puerto 80 HTTP"; sid:1000004; rev:1;)
-EOF'
+sudo dnf install -y autoconf automake libtool
 
-# 3. Validar la configuración de Snort para asegurar que no contenga errores
-sudo snort -T -c /etc/snort/snort.conf
+./bootstrap
+./configure
+make -j$(nproc)
+sudo make install
+sudo ldconfig
 
-# 4. Ejecutar el IDS Snort en modo escucha apuntando a la interfaz de red activa
-# NOTA: Reemplazar "eth0" o "ens33" por el nombre real de tu interfaz (verificar con 'ip a')
-sudo snort -A console -q -c /etc/snort/snort.conf -i eth0
+sudo dnf install -y libdnet-devel
+
+sudo dnf install -y pcre2-devel
+
+cd ~/snort3
+rm -rf build
+./configure_cmake.sh --prefix=/usr/local/snort
+cd build
+make -j$(nproc)
+sudo make install
+
+export PKG_CONFIG_PATH=/usr/lib64/pkgconfig:/usr/share/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig
+
+cd ~/snort3
+sudo rm -rf build
+mkdir build
+cd build
+
+cmake .. \
+  -DCMAKE_INSTALL_PREFIX=/usr/local/snort \
+  -DPCRE2_INCLUDE_DIR=/usr/include \
+  -DPCRE2_LIBRARY=/usr/lib64/libpcre2-8.so
+
+make -j$(nproc)
+sudo make install
+
+sudo ln -sf /usr/include/pcre2.h /usr/include/pcre2.h
+
+find /usr -name "libpcre2-8.pc" 2>/dev/null
+
+export PKG_CONFIG_PATH=/usr/lib64/pkgconfig:/usr/share/pkgconfig:$PKG_CONFIG_PATH
+
+cd ~
+git clone https://github.com/PCRE2Project/pcre2.git
+cd pcre2
+./autogen.sh
+./configure --prefix=/usr/local --enable-pcre2-8
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+
+# Verificar la ruta del archivo de pkgconfig de pcre2
+find /usr -name "libpcre2-8.pc" 2>/dev/null
+
+export PKG_CONFIG_PATH=/usr/lib64/pkgconfig:/usr/share/pkgconfig:$PKG_CONFIG_PATH
+
+cd ~
+git clone https://github.com/PCRE2Project/pcre2.git
+cd pcre2
+./autogen.sh
+./configure --prefix=/usr/local --enable-pcre2-8
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+
+cd ~/snort3
+sudo rm -rf build
+mkdir build && cd build
+
+cmake .. \
+  -DCMAKE_INSTALL_PREFIX=/usr/local/snort \
+  -DPCRE2_INCLUDE_DIR=/usr/local/include \
+  -DPCRE2_LIBRARY=/usr/local/lib/libpcre2-8.so
+
+cmake .. \
+  -DCMAKE_INSTALL_PREFIX=/usr/local/snort \
+  -DPCRE2_INCLUDE_DIR=/usr/include \
+  -DPCRE2_LIBRARY=/usr/lib64/libpcre2-8.so
+
+make -j$(nproc)
+sudo make install
+
+echo "/usr/local/lib" | sudo tee /etc/ld.so.conf.d/local.conf
+sudo ldconfig
+
+/usr/local/snort/bin/snort -V
+
+sudo mkdir -p /usr/local/snort/etc/snort/rules
+sudo nano /usr/local/snort/etc/snort/rules/local.rules
+
+# Detectar todo el trafico ICMP (Ping) hacia el host
+alert icmp any any -> any any (msg:"ALERTA: Trafico ICMP / Ping Detectado"; sid:1000001; rev:1;)
+
+# Detectar todo el trafico hacia el puerto 21/tcp
+alert tcp any any -> any 21 (msg:"ALERTA: Trafico Puerto 21 (FTP) Detectado"; sid:1000002; rev:1;)
+
+# Detectar todo el trafico hacia el puerto 22/tcp
+alert tcp any any -> any 22 (msg:"ALERTA: Trafico Puerto 22 (SSH) Detectado"; sid:1000003; rev:1;)
+
+# Detectar todo el trafico hacia el puerto 80/tcp
+alert tcp any any -> any 80 (msg:"ALERTA: Trafico Puerto 80 (HTTP) Detectado"; sid:1000004; rev:1;)
+
+sudo /usr/local/snort/bin/snort -c /usr/local/snort/etc/snort/snort.lua -R /usr/local/snort/etc/snort/rules/local.rules -i ens160 -A alert_fast
 
 
------------------------------------------------------------------------------
-PRACTICA 4: CONFIGURAR 2FA CON GOOGLE AUTHENTICATOR (PAM) PARA SSH
------------------------------------------------------------------------------
+==============================================================================
+Practica 4: Configurar 2FA con google authenticator Modulo PAM para Acceso SSH
+==============================================================================
 
-# 1. Instalar el módulo PAM de Google Authenticator
-# En Debian/Ubuntu:
-sudo apt update && sudo apt install libpam-google-authenticator -y
-# En RHEL/Rocky Linux (Requiere repositorio EPEL previo):
-sudo dnf install epel-release -y && sudo dnf install google-authenticator -y
+sudo dnf install -y epel-release
+sudo dnf install -y google-authenticator
 
-# 2. Ejecutar la configuración de doble factor con el usuario del laboratorio
-# IMPORTANTE: Responder 'y' (yes) a las preguntas principales y escanear el código QR con el móvil.
 google-authenticator
 
-# 3. Configurar la integración del módulo PAM
-# Editar el archivo de configuración PAM para SSH:
-sudo nano /etc/pam.d/sshd
-# Añadir la siguiente línea al final o al inicio del archivo según la directiva del sistema:
+Do you want authentication tokens to be time-based? y
+
+Escanee el código QR desplegado en la pantalla con la aplicación Google Authenticator en su teléfono (o ingrese la clave secreta manualmente). Guarde los emergency scratch codes en un lugar seguro.
+
+Do you want me to update your "~/.google_authenticator" file? y
+
+Do you want to disallow multiple uses of the same authentication token? y
+
+By default, a new token is generated every 30 seconds... Increase window size? n
+
+Do you want to enable rate-limiting? y
+
+3. Configuración del módulo PAM para SSH
+
 auth required pam_google_authenticator.so nullok
 
-# 4. Configurar el demonio SSH para admitir la autenticación multifactor
 sudo nano /etc/ssh/sshd_config
-# Modificar o verificar que los siguientes parámetros estén configurados correctamente:
 KbdInteractiveAuthentication yes
-ChallengeResponseAuthentication yes
 UsePAM yes
 
-# Si deseas requerir explícitamente tanto la clave pública/contraseña MÁS el código 2FA:
-# AuthenticationMethods password,keyboard-interactive
-
-# 5. Reiniciar el servicio SSH para aplicar los cambios establecidos
-# En Debian/Ubuntu:
-sudo systemctl restart ssh
-# En RHEL/Rocky Linux:
 sudo systemctl restart sshd
 
-# 6. Comando de prueba desde la máquina Host externa:
-# ssh tu_usuario@IP_DE_LA_VM
+ssh angeloj@<IP_DE_LA_VM>
