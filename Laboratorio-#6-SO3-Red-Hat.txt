@@ -2,242 +2,199 @@
 SISTEMAS OPERATIVOS Y SEGURIDAD - LABORATORIO
 =============================================================================
 
-====================
-Practica 1 - Cifrado
-====================
-# Instalar el paquete en RHEL 10
-sudo dnf install -y gnupg2
+=========================================================
+Practica 1: compartir archivos entre linux utilizando NFS
+=========================================================
+sudo dnf install -y nfs-utils
+sudo mkdir -p /OS3
+sudo touch /OS3/Adrian{1..100}.txt
 
-# Verificar que la herramienta esté disponible
-gpg2 --version
+sudo chmod -R 777 /OS3
 
-# Crear el directorio de la práctica y acceder a él
-mkdir -p ~/practica_cifrado
-cd ~/practica_cifrado
+sudo nano /etc/exports
+	/OS3 *(rw,sync,no_root_squash)
 
-# Crear un archivo de prueba con texto dentro
-echo "Este es el contenido confidencial del archivo." > documento.txt
+sudo exportfs -r -v
+sudo systemctl enable --now nfs-server
 
-# Verificar el contenido original
-cat documento.txt
-
-gpg2 --pinentry-mode loopback -c documento.txt
-
-# Intentar leer el archivo cifrado con cat
-cat documento.txt.gpg
-
-gpg2 --pinentry-mode loopback -d documento.txt.gpg
-
-
-=========================================
-Practica 2 - IP tables - UFW/Firewall-cmd
-=========================================
-# Instalar los paquetes necesarios
-sudo dnf install -y httpd vsftpd openssh-server
-
-# Iniciar y habilitar los servicios
-sudo systemctl enable --now httpd vsftpd sshd
-
-# Verificar el estado operativo de los servicios
-sudo systemctl status httpd vsftpd sshd
-
-por si el puerto 90 falla
-sudo ss -tulpn | grep :80
-
-sudo systemctl stop nginx
-sudo systemctl disable nginx
-
-# Asegurar la instalación de la herramienta iptables
-sudo dnf install -y iptables iptables-services
-
-# Bloquear las conexiones entrantes a los puertos 80 (HTTP), 21 (FTP) y 22 (SSH)
-sudo iptables -A INPUT -p tcp --dport 80 -j DROP
-sudo iptables -A INPUT -p tcp --dport 21 -j DROP
-sudo iptables -A INPUT -p tcp --dport 22 -j DROP
-
-# Verificar que las reglas estén aplicadas
-sudo iptables -L -n -v
-
-# Eliminar las reglas de bloqueo agregadas previamente
-sudo iptables -D INPUT -p tcp --dport 80 -j DROP
-sudo iptables -D INPUT -p tcp --dport 21 -j DROP
-sudo iptables -D INPUT -p tcp --dport 22 -j DROP
-
-# Verificar que el listado esté limpio o sin los bloqueos
-sudo iptables -L -n -v
-
-# Asegurar que firewalld esté iniciado
-sudo systemctl enable --now firewalld
-
-# Bloquear los puertos agregando la regla de rechazo (rich-rules o remoción de servicios)
-sudo firewall-cmd --add-rich-rule='rule family="ipv4" port port="80" protocol="tcp" reject'
-sudo firewall-cmd --add-rich-rule='rule family="ipv4" port port="21" protocol="tcp" reject'
-sudo firewall-cmd --add-rich-rule='rule family="ipv4" port port="22" protocol="tcp" reject'
-
-# Listar la configuración activa para verificar los bloqueos
-sudo firewall-cmd --list-all
-
-# Retirar las reglas de bloqueo
-sudo firewall-cmd --remove-rich-rule='rule family="ipv4" port port="80" protocol="tcp" reject'
-sudo firewall-cmd --remove-rich-rule='rule family="ipv4" port port="21" protocol="tcp" reject'
-sudo firewall-cmd --remove-rich-rule='rule family="ipv4" port port="22" protocol="tcp" reject'
-
-# Permitir los servicios de forma explícita
-sudo firewall-cmd --add-service={http,ftp,ssh} --permanent
+sudo firewall-cmd --add-service=nfs --permanent
 sudo firewall-cmd --reload
 
-# Confirmar la apertura de puertos en la zona activa
-sudo firewall-cmd --list-all
+= cliente =
+sudo dnf install -y nfs-utils
+sudo mkdir -p /mnt/OS3
 
-====================================
-Practica 3 -Instalacion de IDS snort
-====================================
-sudo dnf install -y epel-release
+sudo mount -t nfs <IP_DEL_SERVIDOR>:/OS3 /mnt/OS3
 
-sudo dnf install -y gcc gcc-c++ make cmake libpcap-devel pcre2-devel zlib-ng-compat-devel flex bison
+ls /mnt/OS3
 
-sudo dnf install git -y
+sudo nano /etc/fstab
 
-cd ~
-git clone https://github.com/snort3/libdaq.git
-cd libdaq
-./bootstrap
-./configure
-make
-sudo make install
+<IP_DEL_SERVIDOR>:/OS3    /mnt/OS3    nfs    defaults,_netdev    0  0
 
-sudo dnf install -y autoconf automake libtool
+sudo umount /mnt/OS3
+sudo mount -a
+ls /mnt/OS3
 
-./bootstrap
-./configure
-make -j$(nproc)
-sudo make install
-sudo ldconfig
+sudo reboot
 
-sudo dnf install -y libdnet-devel
+df -h | grep OS3
+ls /mnt/OS3
 
-sudo dnf install -y pcre2-devel
+==========================================================================
+Practica 2: Creacion de fileserver compatible con Windows utilizando SAMBA
+==========================================================================
 
-cd ~/snort3
-rm -rf build
-./configure_cmake.sh --prefix=/usr/local/snort
-cd build
-make -j$(nproc)
-sudo make install
+sudo dnf install -y samba samba-client
+sudo systemctl enable --now smb nmb
 
-export PKG_CONFIG_PATH=/usr/lib64/pkgconfig:/usr/share/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig
+sudo groupadd smbgroup
+sudo useradd -m -g smbgroup adrianuser
+sudo smbpasswd -a adrianuser
 
-cd ~/snort3
-sudo rm -rf build
-mkdir build
-cd build
+sudo mkdir -p /samba/compartido
+sudo chown -R adrianuser:smbgroup /samba/compartido
+sudo chmod -R 775 /samba/compartido
 
-cmake .. \
-  -DCMAKE_INSTALL_PREFIX=/usr/local/snort \
-  -DPCRE2_INCLUDE_DIR=/usr/include \
-  -DPCRE2_LIBRARY=/usr/lib64/libpcre2-8.so
+sudo chcon -t samba_share_t /samba/compartido
 
-make -j$(nproc)
-sudo make install
+sudo touch /samba/compartido/adrian{1..100}
+sudo chown adrianuser:smbgroup /samba/compartido/adrian*
 
-sudo ln -sf /usr/include/pcre2.h /usr/include/pcre2.h
+sudo nano /etc/samba/smb.conf
+[Compartido]
+   path = /samba/compartido
+   valid users = @smbgroup
+   guest ok = no
+   writable = yes
+   browsable = yes
 
-find /usr -name "libpcre2-8.pc" 2>/dev/null
+testparm
+sudo systemctl restart smb nmb
 
-export PKG_CONFIG_PATH=/usr/lib64/pkgconfig:/usr/share/pkgconfig:$PKG_CONFIG_PATH
+sudo firewall-cmd --add-service=samba --permanent
+sudo firewall-cmd --reload
 
-cd ~
-git clone https://github.com/PCRE2Project/pcre2.git
-cd pcre2
-./autogen.sh
-./configure --prefix=/usr/local --enable-pcre2-8
-make -j$(nproc)
-sudo make install
-sudo ldconfig
+1. Mapear la unidad de red
 
-# Verificar la ruta del archivo de pkgconfig de pcre2
-find /usr -name "libpcre2-8.pc" 2>/dev/null
+Abra el Explorador de archivos en Windows.
 
-export PKG_CONFIG_PATH=/usr/lib64/pkgconfig:/usr/share/pkgconfig:$PKG_CONFIG_PATH
+Vaya a Este equipo, haga clic en los tres puntos (...) o en la barra superior y seleccione Mapear red (o Conectar a unidad de red).
 
-cd ~
-git clone https://github.com/PCRE2Project/pcre2.git
-cd pcre2
-./autogen.sh
-./configure --prefix=/usr/local --enable-pcre2-8
-make -j$(nproc)
-sudo make install
-sudo ldconfig
+Seleccione la letra de unidad deseada (por ejemplo, Z:).
 
-cd ~/snort3
-sudo rm -rf build
-mkdir build && cd build
+En el campo Carpeta, ingrese:
+\\<IP_DEL_SERVIDOR_LINUX>\Compartido
 
-cmake .. \
-  -DCMAKE_INSTALL_PREFIX=/usr/local/snort \
-  -DPCRE2_INCLUDE_DIR=/usr/local/include \
-  -DPCRE2_LIBRARY=/usr/local/lib/libpcre2-8.so
+Marque la casilla Conectar usando credenciales diferentes y presione Finalizar.
 
-cmake .. \
-  -DCMAKE_INSTALL_PREFIX=/usr/local/snort \
-  -DPCRE2_INCLUDE_DIR=/usr/include \
-  -DPCRE2_LIBRARY=/usr/lib64/libpcre2-8.so
+Ingrese el usuario adrianuser y la contraseña configurada previamente en Samba.
 
-make -j$(nproc)
-sudo make install
+2. Edición del archivo adrian99
 
-echo "/usr/local/lib" | sudo tee /etc/ld.so.conf.d/local.conf
-sudo ldconfig
+Ingrese a la unidad mapeada Z: y ubique el archivo adrian99.
 
-/usr/local/snort/bin/snort -V
+Ábralo con el Bloc de notas (o cualquier editor de texto).
 
-sudo mkdir -p /usr/local/snort/etc/snort/rules
-sudo nano /usr/local/snort/etc/snort/rules/local.rules
+Escriba la frase exacta: el zumzum de la carabela
 
-# Detectar todo el trafico ICMP (Ping) hacia el host
-alert icmp any any -> any any (msg:"ALERTA: Trafico ICMP / Ping Detectado"; sid:1000001; rev:1;)
+Guarde los cambios (Ctrl + G) y cierre el archivo.
 
-# Detectar todo el trafico hacia el puerto 21/tcp
-alert tcp any any -> any 21 (msg:"ALERTA: Trafico Puerto 21 (FTP) Detectado"; sid:1000002; rev:1;)
+= verificacion en Linux -
+cat /samba/compartido/adrian99
 
-# Detectar todo el trafico hacia el puerto 22/tcp
-alert tcp any any -> any 22 (msg:"ALERTA: Trafico Puerto 22 (SSH) Detectado"; sid:1000003; rev:1;)
+==================================================================
+Practica 3: Creacion de controlador de Dominio con cliente Windows
+==================================================================
 
-# Detectar todo el trafico hacia el puerto 80/tcp
-alert tcp any any -> any 80 (msg:"ALERTA: Trafico Puerto 80 (HTTP) Detectado"; sid:1000004; rev:1;)
+sudo hostnamectl set-hostname dc1.so3.inet
 
-sudo /usr/local/snort/bin/snort -c /usr/local/snort/etc/snort/snort.lua -R /usr/local/snort/etc/snort/rules/local.rules -i ens160 -A alert_fast
+sudo nano /etc/hosts
+<IP_DEL_SERVIDOR>   dc1.so3.inet   dc1   SO3.INET
 
+sudo dnf install -y samba-client krb5-workstation
 
-==============================================================================
-Practica 4: Configurar 2FA con google authenticator Modulo PAM para Acceso SSH
-==============================================================================
+sudo rm -f /etc/samba/smb.conf
 
 sudo dnf install -y epel-release
-sudo dnf install -y google-authenticator
+sudo dnf install -y samba-dc-libs samba-winbind
 
-google-authenticator
+sudo rm -f /etc/samba/smb.conf
 
-Do you want authentication tokens to be time-based? y
+sudo useradd -m lanegracubana
+sudo smbpasswd -a lanegracubana
 
-Escanee el código QR desplegado en la pantalla con la aplicación Google Authenticator en su teléfono (o ingrese la clave secreta manualmente). Guarde los emergency scratch codes en un lugar seguro.
+sudo nano /etc/samba/smb.conf
+[global]
+   workgroup = SO3
+   netbios name = NODO1
+   server string = Servidor Samba SO3
+   
+   # Modo Controlador de Dominio NT4
+   domain logons = yes
+   domain master = yes
+   local master = yes
+   preferred master = yes
+   os level = 65
+   
+   security = user
+   passdb backend = tdbsam
 
-Do you want me to update your "~/.google_authenticator" file? y
+[netlogon]
+   path = /var/lib/samba/netlogon
+   read only = yes
+   guest ok = yes
 
-Do you want to disallow multiple uses of the same authentication token? y
+sudo smbpasswd -a lanegracubana
 
-By default, a new token is generated every 30 seconds... Increase window size? n
+sudo mkdir -p /var/lib/samba/netlogon
+sudo systemctl restart smb nmb
+sudo systemctl enable smb nmb
 
-Do you want to enable rate-limiting? y
+sudo firewall-cmd --add-service=samba --permanent
+sudo firewall-cmd --reload
 
-3. Configuración del módulo PAM para SSH
+Paso Final: Unir Windows y Autenticar
+1. Configurar la red en Windows
 
-auth required pam_google_authenticator.so nullok
+En la máquina virtual con Windows, abre Conexiones de red (puedes presionar Win + R, escribir ncpa.cpl y presionar Enter).
 
-sudo nano /etc/ssh/sshd_config
-KbdInteractiveAuthentication yes
-UsePAM yes
+Haz clic derecho sobre tu adaptador de red activo y selecciona Propiedades.
 
-sudo systemctl restart sshd
+Selecciona Protocolo de Internet versión 4 (TCP/IPv4) y haz clic en Propiedades.
 
-ssh angeloj@<IP_DE_LA_VM>
+En la opción Servidor DNS preferido, coloca la dirección IP de tu servidor Red Hat 10.
+
+2. Unir el equipo al Dominio SO3
+
+Presiona Win + R, escribe sysdm.cpl y presiona Enter para abrir las Propiedades del Sistema.
+
+En la pestaña Nombre de equipo, haz clic en el botón Cambiar...
+
+En la sección Miembro de, selecciona Dominio e ingresa:
+SO3
+
+Haz clic en Aceptar.
+
+Cuando la ventana emergente pida las credenciales para unirse al dominio, ingresa:
+
+Usuario: lanegracubana
+
+Contraseña: 20252751
+
+Al recibir el mensaje de bienvenida al dominio SO3, presiona Aceptar y reinicia la VM de Windows.
+
+3. Prueba de autenticación (Demostración de la práctica)
+
+Una vez que la VM de Windows haya reiniciado, en la pantalla de bienvenida selecciona la opción Otro usuario (o Cambiar de usuario).
+
+Para iniciar sesión, escribe:
+
+Usuario: lanegracubana
+
+Contraseña: 20252751
+
+Al entrar al escritorio, abre una terminal de comando (cmd) en Windows y ejecuta:
+whoami
+
+(Deberá mostrar SO3\lanegracubana, lo cual confirma que el usuario está autenticado correctamente en el dominio).
